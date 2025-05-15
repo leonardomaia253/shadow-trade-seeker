@@ -1,3 +1,4 @@
+
 // bots/liquidation/executor.ts
 import { ethers } from "ethers";
 import { JsonRpcProvider } from "@ethersproject/providers";
@@ -59,4 +60,10 @@ export async function executeLiquidation({
       minTimestamp: Math.floor(Date.now() / 1000),
       alwaysSendToMevShare: true,
     });
-}};
+    
+    return true;
+  } catch (error) {
+    console.error("Error executing liquidation:", error);
+    return false;
+  }
+}

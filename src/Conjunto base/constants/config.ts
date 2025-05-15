@@ -1,7 +1,7 @@
 
 // Tenderly configuration for simulations
 export const TENDERLY_CONFIG = {
-  account: "Volup"
+  account: "Volup",
   project: "project1",           // Replace in production
   accessKey: process.env.TENDERLY_ACCESS_KEY || "your-tenderly-key", // Replace in production
 };
