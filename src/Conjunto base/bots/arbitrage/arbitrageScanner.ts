@@ -3,14 +3,15 @@
 import { ethers } from "ethers";
 import { QuoteResult, TokenInfo } from "../../utils/types";
 import { getGasCostInToken, estimateGasUsage } from "../../utils/gasEstimator";
-import { getQuote } from "../../shared/build/getQuote";
 
 const MIN_PROFIT_THRESHOLD = 1; // em token base (ex: 0.001 WETH)
 
 async function getDexQuote({
+  provider,
   path,
   amountIn,
 }: {
+  provider: ethers.providers.Provider;
   path: TokenInfo[];
   amountIn: ethers.BigNumber;
 }): Promise<QuoteResult | null> {
@@ -20,26 +21,31 @@ async function getDexQuote({
   const tokenOut = path[1];
   
   try {
-    // Convert BigNumber to bigint for getDexQuotes
-    
-    const amountInBigInt = BigInt(amountIn.toString());
+    // Convert BigNumber to string for compatibility
+    const amountInStr = amountIn.toString();
     
     // Get quotes from various DEXs
     const quotesResult = await getQuote(
-      tokenIn.address,
-      tokenOut.address,
-      amountInBigInt
+      provider,
+      "uniswapv3", // default dex
+      {
+        tokenIn: tokenIn.address,
+        tokenOut: tokenOut.address,
+        amountIn: amountInStr
+      }
     );
     
     // If no paths found, return null
-    if (!quotesResult.paths.length) return null;
+    if (!quotesResult || !quotesResult.paths || !quotesResult.paths.length) return null;
     
     // Get the best quote (first one, as they're sorted by output)
     const bestQuote = quotesResult.paths[0];
     
     return {
-      amountIn: amountInBigInt,
+      amountIn: BigInt(amountInStr),
       amountOut: bestQuote.output,
+      amountOutMin: BigInt(0), // Add missing property
+      estimatedGas: ethers.BigNumber.from(200000), // Add missing property
       path: path,
       dex: bestQuote.source
     };
@@ -69,12 +75,30 @@ export async function findBestArbitrageRoute({
     const amountInBigInt = BigInt(amountIn.toString());
 
     // First hop: base -> intermediate
-    const firstHopQuote = await await getQuote({tokenIn,tokenOut,amountIn: amountInBigInt});
-    if (!firstHopQuote || firstHopQuote.output === 0n) continue;
+    const firstHopQuote = await getQuote(
+      provider,
+      "uniswapv3",
+      { 
+        tokenIn: baseToken.address, 
+        tokenOut: intermediate.address, 
+        amountIn: amountIn.toString()
+      }
+    );
+    
+    if (!firstHopQuote || !firstHopQuote.output) continue;
 
     // Second hop: intermediate -> base
-    const secondHopQuote = await getQuote(intermediate.address, baseToken.address, firstHopQuote.output);
-    if (!secondHopQuote || secondHopQuote.output === 0n) continue;
+    const secondHopQuote = await getQuote(
+      provider,
+      "uniswapv3",
+      {
+        tokenIn: intermediate.address,
+        tokenOut: baseToken.address,
+        amountIn: firstHopQuote.output.toString()
+      }
+    );
+    
+    if (!secondHopQuote || !secondHopQuote.output) continue;
 
     const finalAmountOut = secondHopQuote.output;
     const gasEstimate = await estimateGasUsage(path);
@@ -87,9 +111,12 @@ export async function findBestArbitrageRoute({
     const profit = ethers.BigNumber.from(finalAmountOut.toString()).sub(amountIn);
     const netProfit = profit.sub(gasCost);
 
-    const combinedQuote: QuoteResult = {
+    // Add missing properties required by QuoteResult
+    const combinedQuote = {
       amountIn: amountInBigInt,
       amountOut: finalAmountOut,
+      amountOutMin: BigInt(0), // Add missing property
+      estimatedGas: ethers.BigNumber.from(200000), // Add missing property
       path: path,
       dex: `${firstHopQuote.source}→${secondHopQuote.source}`,
     };

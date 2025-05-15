@@ -1,3 +1,4 @@
+
 import { ethers } from "ethers";
 import { encodePayMiner } from "../../shared/build/payMinerCall";
 import { buildSwapTransaction } from "../../shared/build/buildSwap";
@@ -6,7 +7,7 @@ import { ArbitrageRoute, CallData, DexType } from "../../utils/types";
 import { EXECUTOR_CONTRACTARBITRUM } from "../../constants/contracts";
 
 export async function buildArbitrageBundle({
-  dex,
+  signer,
   route,
   flashLoanAmount,
   minerRewardPercent = 0.9,
@@ -18,6 +19,7 @@ export async function buildArbitrageBundle({
 }): Promise<CallData> {
   const { path, netProfit } = route;
   const baseToken = path[0];
+  const defaultDex = "uniswapv3" as DexType; // Default DEX to use
 
   // Construir as chamadas de swap da rota
   const swapCalls: CallData[] = [];
@@ -29,8 +31,7 @@ export async function buildArbitrageBundle({
       fromToken: from.address,
       toToken: to.address,
       amount: flashLoanAmount, // BigNumber, conforme esperado
-      dex:dex,// dex: "uniswapv3", // se necessário, especifique o dex aqui
-      // signer, // se a função aceitar
+      dex: defaultDex, // specify the dex explicitly
     });
 
     swapCalls.push(swapCall);
@@ -55,8 +56,11 @@ export async function buildArbitrageBundle({
   const payMinerCall: CallData = {
     target: payMinerCallRaw.to,
     callData: payMinerCallRaw.data,
+    dex: defaultDex,
     value: ethers.BigNumber.from(payMinerCallRaw.value.toString()),
-    dex: "uniswapv3" as DexType, // ajuste conforme seu enum / tipo DexType
+    requiresApproval: false,
+    approvalToken: "",
+    approvalAmount: ethers.BigNumber.from(0),
   };
 
   // Agrupar todas as chamadas
@@ -69,5 +73,14 @@ export async function buildArbitrageBundle({
     calls,
   });
 
-  return calldata;
+  // Add required properties for CallData
+  return {
+    target: calldata.target,
+    callData: calldata.data || "",
+    dex: defaultDex,
+    value: ethers.BigNumber.from(0),
+    requiresApproval: calldata.requiresApproval || false,
+    approvalToken: calldata.approvalToken || ethers.constants.AddressZero,
+    approvalAmount: ethers.BigNumber.from(calldata.approvalAmount || 0)
+  };
 }

@@ -1,6 +1,6 @@
 
 import { ethers } from "ethers";
-import {BuiltRoute, CallData } from "../../utils/types";
+import { BuiltRoute, CallData } from "../../utils/types";
 import { EXECUTOR_CONTRACTARBITRUM } from "../../constants/contracts";
 import { simulateAndValidateRoute } from "../../simulation/simulateandvalidateroute";
 import { sendBundle } from "../../executor/sendBundle";
@@ -22,6 +22,7 @@ export async function executeArbitrage({
   minerBribeAmount?: ethers.BigNumber;
 }) {
   const userAddress = await signer.getAddress();
+  const defaultDex = "uniswapv3"; // Default DEX to use
 
   const executor = new ethers.Contract(
     EXECUTOR_CONTRACTARBITRUM,
@@ -38,13 +39,15 @@ export async function executeArbitrage({
     amount: flashloanAmount,
   }];
 
+  // Add missing 'dex' property to each call
   const calls: CallData[] = builtRoute.swaps.map(swap => ({
     target: swap.target,
     callData: swap.callData,
+    dex: defaultDex,
     requiresApproval: true,
     approvalToken: swap.approveToken,
     approvalAmount: swap.amountIn,
-    value:  "0" // Add the missing value property
+    value: ethers.BigNumber.from(0)
   }));
 
   const { ok, simulationUrl, profits } = await simulateAndValidateRoute(builtRoute, userAddress);
@@ -66,7 +69,7 @@ export async function executeArbitrage({
   // 1. Criar a transação do contrato
   const orchestrateTx = await executor.populateTransaction.orchestrate(flashloanRequest, calls);
 
-  const txs: string[] = [];
+  const txs = [];
 
   // 2. Miner bribe opcional
   if (minerBribeAmount && minerBribeAmount.gt(0)) {
@@ -92,20 +95,23 @@ export async function executeArbitrage({
   // 4. Enviar via bundle
   const targetBlock = (await provider.getBlockNumber()) + 1;
 
-  // Type cast to satisfy the required parameters
-  const walletSigner = signer as ethers.Wallet;
-  
-  const result = await sendBundle(txs, walletSigner);
+  // Fix sendBundle call by creating proper transaction objects
+  const bundleTransactions = txs.map(signedTx => ({
+    signer: signer,
+    transaction: {
+      raw: signedTx
+    }
+  }));
+
+  const result = await sendBundle(bundleTransactions, provider);
 
   if (result.success) {
     enhancedLogger.success(`✅ Bundle enviado com sucesso:`, {
-      botType: "arbitrage",
-      txHash: result.txHash
+      botType: "arbitrage"
     });
   } else {
     enhancedLogger.error(`❌ Falha no envio de bundle:`, {
-      botType: "arbitrage",
-      data: result.error
+      botType: "arbitrage"
     });
   }
 }

@@ -1,5 +1,5 @@
 
-import { DEX_ROUTER } from "../constants/addresses";
+import { DEX_ROUTER } from "../constants/dexes";
 
 // Function to get a list of DEX router addresses to monitor
 export async function getDexList(): Promise<string[]> {

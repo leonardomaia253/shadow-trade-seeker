@@ -28,16 +28,22 @@ export async function sendBundle(
     const signedTxs: string[] = [];
 
     for (const { signer, transaction } of bundleTransactions) {
-      const nonce = await signer.getTransactionCount("latest");
-      const gasLimit = transaction.gasLimit || 1_000_000;
-      const tx = await signer.populateTransaction({
-        ...transaction,
-        nonce,
-        gasLimit,
-      });
+      if (transaction.raw) {
+        // If raw transaction is already provided, use it
+        signedTxs.push(transaction.raw as string);
+      } else {
+        // Otherwise, sign the transaction
+        const nonce = await signer.getTransactionCount("latest");
+        const gasLimit = transaction.gasLimit || 1_000_000;
+        const tx = await signer.populateTransaction({
+          ...transaction,
+          nonce,
+          gasLimit,
+        });
 
-      const signedTx = await signer.signTransaction(tx);
-      signedTxs.push(signedTx);
+        const signedTx = await signer.signTransaction(tx);
+        signedTxs.push(signedTx);
+      }
     }
 
     const blockNumber = await provider.getBlockNumber();

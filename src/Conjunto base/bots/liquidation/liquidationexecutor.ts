@@ -1,7 +1,6 @@
 
 // bots/liquidation/executor.ts
 import { ethers } from "ethers";
-import { JsonRpcProvider } from "@ethersproject/providers";
 import { buildLiquidationBundle } from "./liquidationbuilder";
 import { LiquidationOpportunity } from "../../utils/types";
 import { sendBundle } from "../../executor/sendBundle";
@@ -12,35 +11,44 @@ export async function executeLiquidation({
   signer,
   opportunity,
 }: {
-  provider: JsonRpcProvider;
+  provider: ethers.providers.JsonRpcProvider;
   signer: ethers.Wallet;
   opportunity: LiquidationOpportunity;
 }): Promise<boolean> {
   try {
     const blockNumber = await provider.getBlockNumber();
 
+    // Ensure all values are strings to match expected interface
+    const collateralAsset = typeof opportunity.collateralAsset === 'string' 
+      ? opportunity.collateralAsset 
+      : opportunity.collateralAsset.address;
+      
+    const debtAsset = typeof opportunity.debtAsset === 'string' 
+      ? opportunity.debtAsset 
+      : opportunity.debtAsset.address;
+
     // Montar bundle com lógica off-chain
     const bundleTx = await buildLiquidationBundle({
       signer,
-      collateralAsset: opportunity.collateralAsset,
-      debtAsset: opportunity.debtAsset,
-      userToLiquidate: opportunity.borrower,
-      amountToRepay: opportunity.repayAmount.toString(),
-      expectedProfitToken: opportunity.collateralAsset,
-      flashLoanToken: opportunity.debtAsset,
-      flashLoanAmount: opportunity.repayAmount.toString(),
-      minerReward: ethers.BigNumber.from(opportunity.repayAmount).mul(5).div(100).toString(), // 5%
-      protocol: opportunity.protocol,
+      collateralAsset,
+      debtAsset,
+      userToLiquidate: opportunity.userAddress || '',
+      amountToRepay: opportunity.debtAmount?.toString() || '0',
+      expectedProfitToken: collateralAsset,
+      flashLoanToken: debtAsset,
+      flashLoanAmount: opportunity.debtAmount?.toString() || '0',
+      minerReward: ethers.BigNumber.from(opportunity.debtAmount || '0').mul(5).div(100).toString(), // 5%
+      protocol: opportunity.protocol as "aave" | "compound" | "morpho" | "venus" | "spark",
     });
 
     // Assinar transação
     const txRequest = await signer.populateTransaction({
       to: bundleTx.target,
-      data: bundleTx.data,
-      value: bundleTx.value ?? 0n,
-      gasLimit: 2_000_000n,
-      maxFeePerGas: 10n ** 10n,
-      maxPriorityFeePerGas: 10n ** 9n,
+      data: bundleTx.callData,
+      value: bundleTx.value?.toString() || "0",
+      gasLimit: 2_000_000,
+      maxFeePerGas: ethers.utils.parseUnits("10", "gwei"),
+      maxPriorityFeePerGas: ethers.utils.parseUnits("1", "gwei"),
       chainId: 42161,
       type: 2,
     });
@@ -56,10 +64,10 @@ export async function executeLiquidation({
     }
     
     // Enviar bundle com a transação assinada (como array de raw txs)
-    await sendBundle([signedTx], blockNumber, signer, {
-      minTimestamp: Math.floor(Date.now() / 1000),
-      alwaysSendToMevShare: true,
-    });
+    await sendBundle(
+      [{ signer, transaction: { raw: signedTx } }],
+      provider
+    );
     
     return true;
   } catch (error) {
