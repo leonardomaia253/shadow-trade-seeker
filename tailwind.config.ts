@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -61,6 +62,17 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				// Custom colors for MEV bot
+				neon: {
+					blue: '#00f2ff',
+					pink: '#ff00e5',
+					green: '#00ff9d'
+				},
+				crypto: {
+					dark: '#121218',
+					darker: '#0a0a0f',
+					card: '#1c1c24'
 				}
 			},
 			borderRadius: {
@@ -84,11 +96,27 @@ export default {
 					to: {
 						height: '0'
 					}
+				},
+				'pulse-glow': {
+					'0%, 100%': { opacity: '0.6' },
+					'50%': { opacity: '1' }
+				},
+				'data-flow': {
+					'0%': { transform: 'translateX(0)' },
+					'100%': { transform: 'translateX(100%)' }
+				},
+				'flash': {
+					'0%': { opacity: '0.3' },
+					'50%': { opacity: '1' },
+					'100%': { opacity: '0.3' }
 				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'pulse-glow': 'pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+				'data-flow': 'data-flow 3s linear infinite',
+				'flash': 'flash 1.5s ease-in-out infinite'
 			}
 		}
 	},
