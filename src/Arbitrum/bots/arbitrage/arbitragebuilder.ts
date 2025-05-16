@@ -29,7 +29,7 @@ export async function buildOrchestrationFromRoute(
   // Bribe (pode vir de parâmetro também)
   const bribe = encodePayMiner(
     executor,
-    "0xWETHAddress", // Troque pelo token usado para bribe
+    "0x82af49447d8a07e3bd95bd0d56f35241523fbab1", // Troque pelo token usado para bribe
     BigInt(10 ** 16) // 0.01 ETH em wei
   );
   calls.push(bribe);
