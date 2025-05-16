@@ -4,6 +4,7 @@ import { encodePayMiner } from "../../shared/build/payMinerCall";
 import { buildSwapTransaction } from "../../shared/build/buildSwap";
 import { buildApproveCall } from "../../shared/build/buildApproveCall";
 
+const WETH_ADDRESS = "0x82af49447d8a07e3bd95bd0d56f35241523fbab1"; // Arbitrum WETH
 
 export async function buildOrchestrationFromRoute(
   route: SwapStep[],
@@ -13,12 +14,14 @@ export async function buildOrchestrationFromRoute(
 
   // Aprovação do token de entrada para o primeiro DEX
   const firstStep = route[0];
-  const spender = typeof firstStep.poolData === "string"? firstStep.poolData: firstStep.poolData?.router;
-  const amountIn = firstStep.amountIn ?? BigInt(0); // Use o valor real
+  const spender = typeof firstStep.poolData === "string"
+    ? firstStep.poolData
+    : firstStep.poolData?.router;
+  const amountIn = firstStep.amountIn ?? BigInt(0);
   if (!spender) throw new Error("Spender (router) não definido no primeiro passo");
-  calls.push(buildApproveCall(firstStep.tokenIn, spender, (amountIn.toString())));
+  calls.push(buildApproveCall(firstStep.tokenIn, spender, amountIn.toString()));
 
-  // Executa swaps dinamicamente conforme DEX
+  // Executa swaps
   for (const step of route) {
     const buildFn = buildSwapTransaction[step.dex];
     if (!buildFn) throw new Error(`Builder não implementado para o DEX ${step.dex}`);
@@ -26,11 +29,24 @@ export async function buildOrchestrationFromRoute(
     calls.push(swapCall);
   }
 
-  // Bribe (pode vir de parâmetro também)
+  // Unwrap WETH → ETH antes do pagamento do minerador
+  const wethInterface = new ethers.utils.Interface([
+    "function withdraw(uint256 wad)"
+  ]);
+
+  const unwrapAmount = BigInt(10 ** 16); // 0.01 WETH → ETH (ajuste conforme o lucro)
+  const unwrapCall: Call = {
+    target: WETH_ADDRESS,
+    callData: wethInterface.encodeFunctionData("withdraw", [unwrapAmount]),
+    value: "0", // Não precisa enviar ETH
+  };
+  calls.push(unwrapCall);
+
+  // Bribe com ETH para o minerador (block.coinbase)
   const bribe = encodePayMiner(
     executor,
-    "0x82af49447d8a07e3bd95bd0d56f35241523fbab1", // Troque pelo token usado para bribe
-    BigInt(10 ** 16) // 0.01 ETH em wei
+    ethers.constants.AddressZero, // ETH (native)
+    unwrapAmount
   );
   calls.push(bribe);
 
