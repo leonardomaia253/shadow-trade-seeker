@@ -1,3 +1,4 @@
+
 import { ethers } from "ethers";
 import { Call, SwapStep } from "../../utils/types";
 import { encodePayMiner } from "../../shared/build/payMinerCall";
@@ -38,7 +39,7 @@ export async function buildOrchestrationFromRoute(
   const unwrapCall: Call = {
     target: WETH_ADDRESS,
     callData: wethInterface.encodeFunctionData("withdraw", [unwrapAmount]),
-    value: "0", // Não precisa enviar ETH
+    value: BigInt(0), // Fixed: Changed "0" string to BigInt(0)
   };
   calls.push(unwrapCall);
 
