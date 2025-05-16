@@ -1,8 +1,10 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { CircleDollarSign } from 'lucide-react';
+import { supabase } from "@/integrations/supabase/client";
+import { format } from 'date-fns';
 
 interface BotPerformanceProps {
   stats: {
@@ -14,26 +16,82 @@ interface BotPerformanceProps {
   };
 }
 
-// This would normally be fetched from the database
-const generateMockData = () => {
-  const data = [];
-  const now = new Date();
-  
-  for (let i = 30; i >= 0; i--) {
-    const date = new Date();
-    date.setDate(now.getDate() - i);
-    
-    data.push({
-      date: date.toLocaleDateString(),
-      profit: Math.random() * 0.1, // Random profit between 0 and 0.1 ETH
-    });
-  }
-  
-  return data;
-};
-
 const BotPerformance = ({ stats }: BotPerformanceProps) => {
-  const data = generateMockData();
+  const [chartData, setChartData] = useState<any[]>([]);
+  
+  useEffect(() => {
+    // Fetch transaction history for the chart
+    const fetchTransactionHistory = async () => {
+      // Get the last 30 days of transactions
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      const { data, error } = await supabase
+        .from('bot_transactions')
+        .select('*')
+        .eq('bot_type', 'arbitrage')
+        .gte('timestamp', thirtyDaysAgo.toISOString())
+        .order('timestamp', { ascending: true });
+      
+      if (error) {
+        console.error('Error fetching transaction history:', error);
+        return;
+      }
+      
+      if (!data || data.length === 0) {
+        // If no data yet, use an empty chart
+        setChartData([]);
+        return;
+      }
+      
+      // Process transactions into daily profit data
+      const dailyProfits = new Map<string, number>();
+      
+      data.forEach(tx => {
+        const date = format(new Date(tx.timestamp), 'yyyy-MM-dd');
+        const profit = parseFloat(tx.profit || 0) - parseFloat(tx.gas || 0);
+        
+        if (dailyProfits.has(date)) {
+          dailyProfits.set(date, dailyProfits.get(date)! + profit);
+        } else {
+          dailyProfits.set(date, profit);
+        }
+      });
+      
+      // Fill in missing dates (days with no transactions)
+      const filledData = [];
+      const today = new Date();
+      for (let i = 0; i < 30; i++) {
+        const date = new Date();
+        date.setDate(today.getDate() - (29 - i));
+        const dateStr = format(date, 'yyyy-MM-dd');
+        
+        filledData.push({
+          date: dateStr,
+          profit: dailyProfits.get(dateStr) || 0
+        });
+      }
+      
+      setChartData(filledData);
+    };
+    
+    fetchTransactionHistory();
+    
+    // Set up real-time listener for new transactions
+    const channel = supabase
+      .channel('arbitrage-chart-updates')
+      .on('postgres_changes', 
+          { event: 'INSERT', schema: 'public', table: 'bot_transactions', filter: 'bot_type=eq.arbitrage' },
+          (payload) => {
+            // When a new transaction comes in, refresh the chart
+            fetchTransactionHistory();
+          })
+      .subscribe();
+      
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
   
   const formattedStats = {
     netProfit: stats.totalProfit - (stats.gasSpent || 0),
@@ -55,8 +113,14 @@ const BotPerformance = ({ stats }: BotPerformanceProps) => {
       <CardContent>
         <div className="h-48 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data}>
-              <XAxis dataKey="date" hide />
+            <LineChart data={chartData}>
+              <XAxis 
+                dataKey="date" 
+                hide={false}
+                tickFormatter={(value) => format(new Date(value), 'MMM dd')}
+                tick={{ fill: '#9CA3AF', fontSize: 10 }}
+                tickMargin={5}
+              />
               <YAxis hide />
               <Tooltip 
                 contentStyle={{ 
@@ -67,7 +131,7 @@ const BotPerformance = ({ stats }: BotPerformanceProps) => {
                 labelStyle={{ color: '#00E676' }}
                 itemStyle={{ color: '#00E676' }}
                 formatter={(value: number) => [`${value.toFixed(5)} ETH`, 'Profit']}
-                labelFormatter={(value) => `Date: ${value}`}
+                labelFormatter={(value) => `Date: ${format(new Date(value), 'MMM dd, yyyy')}`}
               />
               <Line 
                 type="monotone" 

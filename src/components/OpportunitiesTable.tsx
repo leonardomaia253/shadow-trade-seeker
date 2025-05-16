@@ -3,16 +3,16 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TrendingUp, TrendingDown, Activity } from "lucide-react";
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, parseISO } from 'date-fns';
 
 interface Transaction {
   id: string;
   tx_hash: string;
   timestamp: string;
   status: string;
-  profit: number;
+  profit: number | string;
   action: string;
-  gas?: number;
+  gas?: number | string;
 }
 
 interface OpportunitiesTableProps {
@@ -47,51 +47,56 @@ const OpportunitiesTable = ({ transactions }: OpportunitiesTableProps) => {
                 </TableCell>
               </TableRow>
             ) : (
-              transactions.map((tx) => (
-                <TableRow key={tx.id} className="border-crypto-border hover:bg-crypto-darker">
-                  <TableCell className="text-xs">
-                    {formatDistanceToNow(new Date(tx.timestamp), { addSuffix: true })}
-                  </TableCell>
-                  <TableCell>
-                    <a 
-                      href={`https://arbiscan.io/tx/${tx.tx_hash}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-neon-blue hover:text-neon-blue/80 text-xs"
-                    >
-                      {`${tx.tx_hash.slice(0, 6)}...${tx.tx_hash.slice(-4)}`}
-                    </a>
-                  </TableCell>
-                  <TableCell>
-                    <span className={`rounded-full px-2 py-1 text-xs ${
-                      tx.status === 'success' 
-                        ? 'bg-green-900/30 text-green-400'
-                        : 'bg-red-900/30 text-red-400'
-                    }`}>
-                      {tx.status}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-xs">{tx.action}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center">
-                      {tx.profit > 0 ? (
-                        <>
-                          <TrendingUp className="h-3 w-3 text-neon-green mr-1" />
-                          <span className="text-neon-green text-xs">{tx.profit.toFixed(5)} ETH</span>
-                        </>
-                      ) : (
-                        <>
-                          <TrendingDown className="h-3 w-3 text-red-400 mr-1" />
-                          <span className="text-red-400 text-xs">{Math.abs(tx.profit || 0).toFixed(5)} ETH</span>
-                        </>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-xs">
-                    {tx.gas ? `${tx.gas.toFixed(5)} ETH` : '-'}
-                  </TableCell>
-                </TableRow>
-              ))
+              transactions.map((tx) => {
+                const txProfit = typeof tx.profit === 'string' ? parseFloat(tx.profit) : (tx.profit || 0);
+                const txGas = typeof tx.gas === 'string' ? parseFloat(tx.gas) : (tx.gas || 0);
+                
+                return (
+                  <TableRow key={tx.id} className="border-crypto-border hover:bg-crypto-darker">
+                    <TableCell className="text-xs">
+                      {tx.timestamp ? formatDistanceToNow(parseISO(tx.timestamp), { addSuffix: true }) : 'Unknown'}
+                    </TableCell>
+                    <TableCell>
+                      <a 
+                        href={`https://arbiscan.io/tx/${tx.tx_hash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-neon-blue hover:text-neon-blue/80 text-xs"
+                      >
+                        {`${tx.tx_hash.slice(0, 6)}...${tx.tx_hash.slice(-4)}`}
+                      </a>
+                    </TableCell>
+                    <TableCell>
+                      <span className={`rounded-full px-2 py-1 text-xs ${
+                        tx.status === 'success' 
+                          ? 'bg-green-900/30 text-green-400'
+                          : 'bg-red-900/30 text-red-400'
+                      }`}>
+                        {tx.status}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-xs">{tx.action}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center">
+                        {txProfit > 0 ? (
+                          <>
+                            <TrendingUp className="h-3 w-3 text-neon-green mr-1" />
+                            <span className="text-neon-green text-xs">{txProfit.toFixed(5)} ETH</span>
+                          </>
+                        ) : (
+                          <>
+                            <TrendingDown className="h-3 w-3 text-red-400 mr-1" />
+                            <span className="text-red-400 text-xs">{Math.abs(txProfit).toFixed(5)} ETH</span>
+                          </>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {txGas ? `${txGas.toFixed(5)} ETH` : '-'}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>

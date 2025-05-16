@@ -13,6 +13,7 @@ import { enhancedLogger } from '@/Arbitrum/utils/enhancedLogger';
 const ArbitrageBot = () => {
   const { toast } = useToast();
   const [isRunning, setIsRunning] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [baseToken, setBaseToken] = useState<TokenInfo>({
     address: "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",
     symbol: "WETH",
@@ -25,143 +26,117 @@ const ArbitrageBot = () => {
     totalProfit: 0,
     successRate: 0,
     avgProfit: 0,
-    totalTxs: 0
+    totalTxs: 0,
+    gasSpent: 0,
+    is_running: false
   });
 
-  // Fetch bot transactions from Supabase
+  // Initial fetch of bot state and data
   useEffect(() => {
-    const fetchTransactions = async () => {
+    const fetchBotData = async () => {
+      setIsLoading(true);
+      
       try {
-        const { data, error } = await supabase
+        // Fetch bot statistics
+        const { data: statsData, error: statsError } = await supabase
+          .from('bot_statistics')
+          .select('*')
+          .eq('bot_type', 'arbitrage')
+          .single();
+          
+        if (statsError && statsError.code !== 'PGRST116') {
+          throw statsError;
+        }
+        
+        if (statsData) {
+          setStats({
+            totalProfit: parseFloat(statsData.total_profit) || 0,
+            successRate: parseFloat(statsData.success_rate) || 0,
+            avgProfit: parseFloat(statsData.average_profit) || 0,
+            totalTxs: parseInt(statsData.transactions_count) || 0,
+            gasSpent: parseFloat(statsData.gas_spent) || 0,
+            is_running: statsData.is_running || false
+          });
+          
+          setIsRunning(statsData.is_running || false);
+        }
+        
+        // Fetch recent transactions
+        const { data: txData, error: txError } = await supabase
           .from('bot_transactions')
           .select('*')
           .eq('bot_type', 'arbitrage')
           .order('timestamp', { ascending: false })
           .limit(10);
           
-        if (error) throw error;
-        if (data) setTransactions(data);
+        if (txError) throw txError;
+        
+        if (txData) {
+          setTransactions(txData);
+        }
+        
       } catch (error) {
-        console.error('Error fetching transactions:', error);
+        console.error('Error fetching bot data:', error);
         toast({
-          title: "Failed to load transactions",
+          title: "Failed to load bot data",
           description: "Could not connect to database",
           variant: "destructive"
         });
+      } finally {
+        setIsLoading(false);
       }
     };
     
-    fetchTransactions();
+    fetchBotData();
     
-    // Subscribe to real-time updates
-    const channel = supabase
-      .channel('arbitrage-bot-updates')
-      .on('postgres_changes', 
-          { event: 'INSERT', schema: 'public', table: 'bot_transactions', filter: 'bot_type=eq.arbitrage' },
-          (payload) => {
-            setTransactions(current => [payload.new, ...current.slice(0, 9)]);
-          })
-      .subscribe();
-      
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [toast]);
-
-  // Fetch bot statistics
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('bot_statistics')
-          .select('*')
-          .eq('bot_type', 'arbitrage')
-          .single();
-          
-        if (error && error.code !== 'PGRST116') throw error; // PGRST116 is "no rows returned"
-        if (data) {
-          setStats({
-            totalProfit: data.total_profit || 0,
-            successRate: data.success_rate || 0,
-            avgProfit: data.average_profit || 0,
-            totalTxs: data.transactions_count || 0,
-            gasSpent: data.gas_spent || 0
-          });
-        }
-      } catch (error) {
-        console.error('Error fetching stats:', error);
-      }
-    };
-    
-    fetchStats();
-    
-    const channel = supabase
+    // Subscribe to real-time updates for bot statistics
+    const statsChannel = supabase
       .channel('arbitrage-stats-updates')
       .on('postgres_changes', 
           { event: 'UPDATE', schema: 'public', table: 'bot_statistics', filter: 'bot_type=eq.arbitrage' },
           (payload) => {
+            const newData = payload.new;
             setStats({
-              totalProfit: payload.new.total_profit || 0,
-              successRate: payload.new.success_rate || 0,
-              avgProfit: payload.new.average_profit || 0,
-              totalTxs: payload.new.transactions_count || 0,
-              gasSpent: payload.new.gas_spent || 0
+              totalProfit: parseFloat(newData.total_profit) || 0,
+              successRate: parseFloat(newData.success_rate) || 0,
+              avgProfit: parseFloat(newData.average_profit) || 0,
+              totalTxs: parseInt(newData.transactions_count) || 0,
+              gasSpent: parseFloat(newData.gas_spent) || 0,
+              is_running: newData.is_running || false
             });
+            
+            setIsRunning(newData.is_running || false);
+          })
+      .subscribe();
+      
+    // Subscribe to real-time updates for transactions
+    const txChannel = supabase
+      .channel('arbitrage-transactions-updates')
+      .on('postgres_changes', 
+          { event: 'INSERT', schema: 'public', table: 'bot_transactions', filter: 'bot_type=eq.arbitrage' },
+          (payload) => {
+            setTransactions(prev => [payload.new, ...prev.slice(0, 9)]);
           })
       .subscribe();
       
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(statsChannel);
+      supabase.removeChannel(txChannel);
     };
-  }, []);
+  }, [toast]);
 
-  const handleStartBot = () => {
+  const handleStartBot = async () => {
     if (isRunning) return;
     
+    enhancedLogger.info("Starting arbitrage bot");
     setIsRunning(true);
-    enhancedLogger.info("Bot started");
-    toast({
-      title: "Bot Started",
-      description: "Arbitrage bot is now running and searching for opportunities",
-    });
-    
-    // In a real implementation, we would start the bot process here
-    // For now, we'll just simulate activity by logging to the database
-    const logBotStart = async () => {
-      await supabase.from('bot_logs').insert({
-        level: 'info',
-        message: 'Arbitrage bot started',
-        category: 'bot_state',
-        bot_type: 'arbitrage',
-        source: 'user'
-      });
-    };
-    
-    logBotStart();
   };
 
-  const handleStopBot = () => {
+  const handleStopBot = async () => {
     if (!isRunning) return;
     
+    enhancedLogger.info("Stopping arbitrage bot");
     setIsRunning(false);
-    enhancedLogger.info("Bot stopped");
-    toast({
-      title: "Bot Stopped",
-      description: "Arbitrage bot has been stopped",
-    });
-    
-    // In a real implementation, we would stop the bot process here
-    const logBotStop = async () => {
-      await supabase.from('bot_logs').insert({
-        level: 'info',
-        message: 'Arbitrage bot stopped',
-        category: 'bot_state',
-        bot_type: 'arbitrage',
-        source: 'user'
-      });
-    };
-    
-    logBotStop();
   };
 
   const handleUpdateConfig = (config: any) => {
@@ -188,6 +163,14 @@ const ArbitrageBot = () => {
     logConfigChange();
   };
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-crypto-darker text-foreground font-mono flex items-center justify-center">
+        <div className="text-neon-blue animate-pulse">Loading bot data...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-crypto-darker text-foreground font-mono">
       <DashboardHeader />
@@ -209,6 +192,8 @@ const ArbitrageBot = () => {
               onStart={handleStartBot} 
               onStop={handleStopBot} 
               stats={stats}
+              baseToken={baseToken}
+              profitThreshold={profitThreshold}
             />
           </div>
         </div>

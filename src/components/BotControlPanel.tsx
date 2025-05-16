@@ -3,6 +3,8 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Play, Activity, TrendingUp, BarChart, CircleDollarSign } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface BotControlPanelProps {
   isRunning: boolean;
@@ -14,10 +16,84 @@ interface BotControlPanelProps {
     avgProfit: number;
     totalTxs: number;
     gasSpent?: number;
+    is_running?: boolean;
   };
+  baseToken: any;
+  profitThreshold: number;
 }
 
-const BotControlPanel = ({ isRunning, onStart, onStop, stats }: BotControlPanelProps) => {
+const BotControlPanel = ({ isRunning, onStart, onStop, stats, baseToken, profitThreshold }: BotControlPanelProps) => {
+  const { toast } = useToast();
+  const [isProcessing, setIsProcessing] = React.useState(false);
+  
+  const handleStart = async () => {
+    if (isRunning || isProcessing) return;
+    
+    setIsProcessing(true);
+    try {
+      // Call the edge function to start the bot with configuration
+      const { data, error } = await supabase.functions.invoke('arbitrage-bot-control', {
+        body: {
+          action: 'start',
+          config: {
+            baseToken: baseToken,
+            profitThreshold: profitThreshold
+          }
+        }
+      });
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Bot Started",
+        description: "Arbitrage bot is now running and searching for opportunities",
+      });
+      
+      onStart();
+    } catch (err) {
+      console.error("Failed to start bot:", err);
+      toast({
+        title: "Failed to start bot",
+        description: err.message || "An error occurred",
+        variant: "destructive"
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+  
+  const handleStop = async () => {
+    if (!isRunning || isProcessing) return;
+    
+    setIsProcessing(true);
+    try {
+      // Call the edge function to stop the bot
+      const { data, error } = await supabase.functions.invoke('arbitrage-bot-control', {
+        body: {
+          action: 'stop'
+        }
+      });
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Bot Stopped",
+        description: "Arbitrage bot has been stopped",
+      });
+      
+      onStop();
+    } catch (err) {
+      console.error("Failed to stop bot:", err);
+      toast({
+        title: "Failed to stop bot",
+        description: err.message || "An error occurred",
+        variant: "destructive"
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   return (
     <Card className="bg-crypto-card border-crypto-border shadow-glow-sm">
       <CardHeader className="pb-2">
@@ -46,18 +122,30 @@ const BotControlPanel = ({ isRunning, onStart, onStop, stats }: BotControlPanelP
             </div>
             <div className="flex space-x-2">
               <Button 
-                onClick={onStart} 
-                disabled={isRunning}
-                className={`bg-neon-green hover:bg-neon-green/80 text-black ${isRunning ? 'opacity-50' : ''}`}
+                onClick={handleStart} 
+                disabled={isRunning || isProcessing}
+                className={`bg-neon-green hover:bg-neon-green/80 text-black ${isRunning || isProcessing ? 'opacity-50' : ''}`}
               >
-                <Play className="mr-1 h-4 w-4" /> Start
+                {isProcessing ? (
+                  <span className="animate-pulse">Processing...</span>
+                ) : (
+                  <>
+                    <Play className="mr-1 h-4 w-4" /> Start
+                  </>
+                )}
               </Button>
               <Button 
-                onClick={onStop} 
-                disabled={!isRunning}
-                className={`bg-red-500 hover:bg-red-600 text-white ${!isRunning ? 'opacity-50' : ''}`}
+                onClick={handleStop} 
+                disabled={!isRunning || isProcessing}
+                className={`bg-red-500 hover:bg-red-600 text-white ${!isRunning || isProcessing ? 'opacity-50' : ''}`}
               >
-                <span className="mr-1">■</span> Stop
+                {isProcessing ? (
+                  <span className="animate-pulse">Processing...</span>
+                ) : (
+                  <>
+                    <span className="mr-1">■</span> Stop
+                  </>
+                )}
               </Button>
             </div>
           </div>
