@@ -1,7 +1,8 @@
+
 import { ethers } from "ethers";
 import axios from "axios";
 import WebSocket from "ws";
-import { JsonRpcProvider, TransactionRequest } from "@ethersproject/providers";
+import { JsonRpcProvider } from "@ethersproject/providers";
 
 // bloXroute + Flashbots MEV-Share
 const BLOXROUTE_AUTH_HEADER = "SEU_HEADER";
@@ -21,7 +22,7 @@ function getBlockHex(block: number) {
 export async function sendBundle(
   bundleTransactions: Array<{
     signer: ethers.Signer;
-    transaction: TransactionRequest | { raw: string };
+    transaction: any;
   }>,
   provider: JsonRpcProvider
 ): Promise<{ success: boolean }> {

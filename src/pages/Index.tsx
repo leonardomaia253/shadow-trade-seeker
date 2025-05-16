@@ -8,7 +8,7 @@ import ArbitrageOpportunities from '@/components/ArbitrageOpportunities';
 import SandwichSimulator from '@/components/SandwichSimulator';
 import ProfitChart from '@/components/ProfitChart';
 import { Button } from '@/components/ui/button';
-import { Settings } from 'lucide-react';
+import { Settings, Robot } from 'lucide-react';
 
 const Index = () => {
   return (
@@ -18,11 +18,20 @@ const Index = () => {
       <div className="container mx-auto px-4 py-6">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold crypto-gradient">Dashboard Overview</h1>
-          <Link to="/arbitrage">
-            <Button className="bg-gradient-to-r from-neon-blue to-neon-pink text-black font-semibold">
-              <Settings className="mr-2 h-4 w-4" /> Manage Arbitrage Bot
-            </Button>
-          </Link>
+          
+          <div className="flex gap-3">
+            <Link to="/arbitrage">
+              <Button className="bg-gradient-to-r from-neon-blue to-neon-pink text-black font-semibold">
+                <Robot className="mr-2 h-4 w-4" /> Control Arbitrage Bot
+              </Button>
+            </Link>
+            
+            <Link to="/arbitrage">
+              <Button className="bg-gradient-to-r from-neon-blue to-neon-pink text-black font-semibold">
+                <Settings className="mr-2 h-4 w-4" /> Manage Arbitrage Bot
+              </Button>
+            </Link>
+          </div>
         </div>
         
         <StatsOverview />

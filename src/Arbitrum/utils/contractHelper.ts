@@ -3,12 +3,27 @@ import { ethers } from "ethers";
 import { DexType } from "../utils/types";
 import { DEX_ROUTER } from "../constants/addresses";
 
-// ABIs
-import { abi as UniswapV2RouterABI } from "../constants/abis";
-import { abi as UniswapV3RouterABI } from "../constants/abis";
-import { abi as UniswapV4RouterABI } from "../constants/abis";
-import { abi as MaverickV2RouterABI } from "../constants/abis";
-import { abi as CurveRouterABI } from "../constants/abis";
+// ABIs - simplified for demonstration
+const UniswapV2RouterABI = [
+  "function getAmountsOut(uint amountIn, address[] memory path) public view returns (uint[] memory amounts)",
+  "function swapExactTokensForTokens(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) external returns (uint[] memory amounts)"
+];
+
+const UniswapV3RouterABI = [
+  "function exactInputSingle(tuple(address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMin, uint160 sqrtPriceLimitX96)) external payable returns (uint256 amountOut)"
+];
+
+const UniswapV4RouterABI = [
+  "function multicall(bytes[] calldata data) external payable returns (bytes[] memory results)"
+];
+
+const MaverickV2RouterABI = [
+  "function swap(address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOutMin, address to) external returns (uint256 amountOut)"
+];
+
+const CurveRouterABI = [
+  "function exchange_multiple(address[9] memory _route, uint256[3][4] memory _swap_params, uint256 _amount, uint256 _expected) external payable returns (uint256)"
+];
 
 /**
  * Obtém instância do contrato de router para o DEX especificado
@@ -41,12 +56,11 @@ export function getRouterContract(dexType: DexType, provider: ethers.providers.P
       break;
       
     case 'maverickv2':
-      routerAbi = MaverickV2RouterABI; // Supondo que usa interface similar
+      routerAbi = MaverickV2RouterABI;
       break;
     case 'uniswapv4':
-      routerAbi = UniswapV4RouterABI; // Supondo que usa interface similar
+      routerAbi = UniswapV4RouterABI;
       break;
-
       
     default:
       throw new Error(`ABI não disponível para DEX: ${dexType}`);

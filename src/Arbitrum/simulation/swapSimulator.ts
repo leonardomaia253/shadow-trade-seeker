@@ -34,7 +34,6 @@ export async function simulateSwap(params: SimulateSwapParams): Promise<Simulati
     switch(dex) {
       case 'uniswapv2':
       case 'sushiswapv2':
-      case 'pancakeswapv2':
         // Para DEXs baseados em UniswapV2
         [amountOut] = await router.getAmountsOut(amountIn, actualPath);
         

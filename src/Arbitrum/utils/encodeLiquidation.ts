@@ -1,6 +1,6 @@
-import { ethers } from "ethers";
-import {CallData} from "./types"
 
+import { ethers } from "ethers";
+import { CallData } from "./types";
 
 /// Aave
 export function buildAaveLiquidation({
@@ -31,8 +31,13 @@ export function buildAaveLiquidation({
 
   return {
     target: aavePool,
-    value: "0",
+    to: aavePool,
     callData: data,
+    data: data,
+    dex: "uniswapv3",
+    requiresApproval: true,
+    approvalToken: fromToken,
+    approvalAmount: ethers.BigNumber.from(amount)
   };
 }
 
@@ -64,8 +69,13 @@ export function buildCompoundLiquidation({
 
   return {
     target: compoundPool,
-    value: "0",
+    to: compoundPool,
     callData: data,
+    data: data,
+    dex: "uniswapv3",
+    requiresApproval: true,
+    approvalToken: cTokenBorrowed,
+    approvalAmount: ethers.BigNumber.from(amount)
   };
 }
 
@@ -98,8 +108,13 @@ export function buildMorphoLiquidation({
 
   return {
     target: morphoBlue,
-    value: "0",
+    to: morphoBlue,
     callData: data,
+    data: data,
+    dex: "uniswapv3",
+    requiresApproval: true,
+    approvalToken: fromToken,
+    approvalAmount: ethers.BigNumber.from(amount)
   };
 }
 
@@ -131,8 +146,13 @@ export function buildSparkLiquidation({
 
   return {
     target: sparkPool,
-    value: "0",
+    to: sparkPool,
     callData: data,
+    data: data,
+    dex: "uniswapv3",
+    requiresApproval: true,
+    approvalToken: fromToken,
+    approvalAmount: ethers.BigNumber.from(amount)
   };
 }
 
@@ -162,8 +182,12 @@ export function buildVenusLiquidation({
 
   return {
     target: venusPool,
-    value: "0",
+    to: venusPool,
     callData: data,
+    data: data,
+    dex: "uniswapv3",
+    requiresApproval: true,
+    approvalToken: vTokenBorrowed,
+    approvalAmount: ethers.BigNumber.from(amount)
   };
 }
-

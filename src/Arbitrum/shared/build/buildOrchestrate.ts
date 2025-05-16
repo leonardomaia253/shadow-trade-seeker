@@ -1,3 +1,4 @@
+
 import { ethers } from "ethers";
 import { CallData } from "../../utils/types";
 
@@ -15,7 +16,11 @@ target: string;
 data: string;
 requiresApproval: boolean;
 approvalToken: string;
-approvalAmount: Number}> {
+approvalAmount: number;
+to: string;
+callData: string;
+dex: "uniswapv3";
+}> {
   const executorAddress = "";
   const iface = new ethers.utils.Interface([
     "function orchestrate((address provider, address token, uint256 amount)[],(address target, bytes data, bool requiresApproval, address approvalToken, uint256 approvalAmount)[])"
@@ -31,10 +36,12 @@ approvalAmount: Number}> {
 
   return {
     target: executorAddress,
+    to: executorAddress,
     data: calldata,
+    callData: calldata,
     requiresApproval: false,
     approvalToken: ethers.constants.AddressZero,
-    approvalAmount: "0",
+    approvalAmount: 0,
+    dex: "uniswapv3"
   };
 }
-

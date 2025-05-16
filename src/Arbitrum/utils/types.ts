@@ -27,14 +27,23 @@ export interface TokenInfo {
 // Call data for contract interactions
 export interface CallData {
   target: string;
+  to: string;          // endereço do contrato a ser chamado
+  data: string;        // calldata da função
   callData: string;
   dex: DexType;
   value?: ethers.BigNumberish;
   requiresApproval: boolean;
   approvalToken: string;
   approvalAmount: ethers.BigNumberish;
-  to: string;          // endereço do contrato a ser chamado
-  data: string;        // calldata da função
+}
+
+// Simulation result type
+export interface SimulationResult {
+  success: boolean;
+  ok: boolean;
+  profits: ethers.BigNumber;
+  simulationUrl: string;
+  error?: string;
 }
 
 // Arbitrage route
@@ -87,8 +96,29 @@ export interface BuiltRoute {
     approveToken: string;
     amountIn: ethers.BigNumber;
     flashloanProvider: string;
+    tokenIn?: string;
+    tokenOut?: string;
   }>;
   profitUSD: number;
+  calls?: Call[];
+}
+
+// DexSwap information
+export interface DexSwap {
+  dex: DexType;
+  tokenIn: string;
+  tokenOut: string;
+  amountIn: ethers.BigNumberish;
+  amountOutMin?: ethers.BigNumberish;
+  routerAddress: string;
+  path?: string[];
+}
+
+// Built Swap Call
+export interface BuiltSwapCall {
+  target: string;
+  data: string;
+  value?: ethers.BigNumberish;
 }
 
 // Log metadata for enhanced logging
@@ -100,6 +130,7 @@ export type Call = {
   to: string;          // endereço do contrato a ser chamado
   data: string;        // calldata da função
   value?: bigint;      // ETH enviado junto, se necessário
+  target?: string;     // Compatibilidade com outros formatos
 };
 
 interface PoolData {
@@ -122,8 +153,6 @@ export type SwapStep = {
   poolData?: PoolData | string;           // Campo opcional para parâmetros específicos (ex: fee tiers da Uniswap V3)
 };
 
-
-
 export interface MyTransactionRequest {
   to: string; // endereço destino da transação
   data: string; // calldata hex string
@@ -133,5 +162,15 @@ export interface MyTransactionRequest {
   gasPrice?: BigNumberish; // preço do gás (opcional)
   maxFeePerGas?: BigNumberish; // EIP-1559 max fee per gas (opcional)
   maxPriorityFeePerGas?: BigNumberish; // EIP-1559 max priority fee (opcional)
-  // Pode adicionar outros campos do ethers.providers.TransactionRequest se desejar
+}
+
+// Used for transaction decoding
+export interface DecodedSwapTransaction {
+  dex: DexType;
+  tokenIn: string;
+  tokenOut: string;
+  amountIn: ethers.BigNumber;
+  amountOutMin: ethers.BigNumber;
+  to: string;
+  path?: string[];
 }

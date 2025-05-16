@@ -13,8 +13,8 @@ export const DEX_ROUTER: Record<DexType, string> = {
   pancakeswapv3: "0x13f4EA83D0bd40E75C8222255bc855a974568Dd4", // PancakeSwap V3 Router
   curve: "0x445FE580eF8d70FF569aB36e80c647af338db351", // Curve Pool Registry
   camelot: "0xc873fEcbd354f5A56E00E710B90EF4201db2448d", // Camelot V2 Router
-  maverickv2: "",
-  ramsesv2:""
+  maverickv2: "0x5c3b380e5Aeec389d1014Da3Eb372FA2C9e0fc76",
+  ramsesv2: "0xaa273216cc9201a1e4285ca623f584badc736944"
 };
 
 /**
@@ -46,5 +46,5 @@ export const DEX_FEE_TIERS: Record<DexType, number[]> = {
   curve: [100, 400, 1000], // 0.01%, 0.04%, 0.1%
   camelot: [3000, 5000, 8000], // 0.3%, 0.5%, 0.8%
   uniswapv4: [1000, 3000, 5000], // 0.1%, 0.3%, 0.5%
-  uniswapv4: [100, 500, 3000, 10000] // 0.01%, 0.05%, 0.3%, 1% 
+  ramsesv2: [100, 500, 3000, 10000] // 0.01%, 0.05%, 0.3%, 1% 
 };

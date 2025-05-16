@@ -1,8 +1,7 @@
 
 import { ethers } from "ethers";
-import { BuiltRoute, SimulationResult, CallData } from "../utils/types";
-import { enhancedLogger } from "../utils/enhancedLogger";
-import { provider } from "../config/provider";
+import { BuiltRoute, SimulationResult } from "../utils/types";
+import { enhancedLogger } from "../../utils/enhancedLogger";
 import axios from "axios";
 import { TENDERLY_CONFIG } from "../constants/config";
 
@@ -17,8 +16,8 @@ export async function simulateAndValidateRoute(
     enhancedLogger.info(`Simulating route with ${route.swaps.length} swaps`, {
       botType: "arbitrage",
       metadata: { 
-        tokenIn: route.swaps[0].tokenIn,
-        tokenOut: route.swaps[route.swaps.length-1].tokenOut,
+        tokenIn: route.swaps[0]?.tokenIn || "unknown",
+        tokenOut: route.swaps[route.swaps.length-1]?.tokenOut || "unknown",
       }
     });
 
@@ -26,20 +25,19 @@ export async function simulateAndValidateRoute(
     const simulationPayload = {
       network_id: "42161", // Arbitrum One
       from: userAddress,
-      to: route.calls[0].target, // First call target
-      input: route.calls[0].data, // First call data
+      to: route.swaps[0]?.target || ethers.constants.AddressZero, 
+      input: route.swaps[0]?.callData || "0x", 
       gas: 10000000, // Gas limit, can be adjusted
       gas_price: "0", // Use average gas price
       value: "0", // ETH value to send
       save: true, // Save simulation for later reference
       save_if_fails: true, // Save even if simulation fails
       simulation_type: "full", // Full simulation to get accurate results
-      // Add state_objects to represent token balances if needed
     };
 
     // Call Tenderly API for simulation
     const response = await axios.post(
-      `https://api.tenderly.co/api/v1/account/${TENDERLY_CONFIG.account}/project/${TENDERLY_CONFIG.project}/simulate`,
+      `https://api.tenderly.co/api/v1/account/${TENDERLY_CONFIG.account}/project/${TENDERLY_CONFIG.project}/simulate-bundle`,
       simulationPayload,
       {
         headers: {

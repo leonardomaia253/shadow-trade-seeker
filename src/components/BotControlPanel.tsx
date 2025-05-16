@@ -2,7 +2,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Play, Stop, Activity, TrendingUp, BarChart, CircleDollarSign } from "lucide-react";
+import { Play, Activity, TrendingUp, BarChart, CircleDollarSign } from "lucide-react";
 
 interface BotControlPanelProps {
   isRunning: boolean;
@@ -57,7 +57,7 @@ const BotControlPanel = ({ isRunning, onStart, onStop, stats }: BotControlPanelP
                 disabled={!isRunning}
                 className={`bg-red-500 hover:bg-red-600 text-white ${!isRunning ? 'opacity-50' : ''}`}
               >
-                <Stop className="mr-1 h-4 w-4" /> Stop
+                <span className="mr-1">■</span> Stop
               </Button>
             </div>
           </div>

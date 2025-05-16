@@ -1,3 +1,4 @@
+
 import axios from 'axios';
 import { ethers } from 'ethers';
 
@@ -58,7 +59,7 @@ export const simulateBundleWithTenderly = async (
       }
     );
 
-    const simResults = response.data.simulation_results;
+    const simResults = response.data?.simulation_results;
     const allSuccess = simResults.every((res: any) => res.simulation.status === true);
 
     // Não há um simulation.id padrão para bundle, mas podemos retornar todos os dados

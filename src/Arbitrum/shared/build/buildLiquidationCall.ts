@@ -58,12 +58,13 @@ export async function buildLiquidationCall({
     
     return {
       target,
+      to: target,
       callData,
+      data: callData,
       dex: "uniswapv3",
       requiresApproval: true,
       approvalToken: fromToken,
-      approvalAmount: amount,
-      value: ethers.BigNumber.from(0)
+      approvalAmount: amount
     };
     
   } catch (err) {
