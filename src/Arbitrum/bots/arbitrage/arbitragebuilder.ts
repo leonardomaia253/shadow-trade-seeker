@@ -37,9 +37,9 @@ export async function buildOrchestrationFromRoute(
 
   const unwrapAmount = BigInt(10 ** 16); // 0.01 WETH → ETH (ajuste conforme o lucro)
   const unwrapCall: Call = {
-    target: WETH_ADDRESS,
+    to: WETH_ADDRESS, // Add the required 'to' property
     data: wethInterface.encodeFunctionData("withdraw", [unwrapAmount]),
-    value: BigInt(0), // Fixed: Changed "0" string to BigInt(0)
+    value: BigInt(0),
   };
   calls.push(unwrapCall);
 
