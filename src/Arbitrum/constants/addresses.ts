@@ -57,6 +57,14 @@ export const DEX_ROUTER = {
   export const maverickv2Router="0x5c3b380e5Aeec389d1014Da3Eb372FA2C9e0fc76";
   export const camelotRouter="0xc873fEcbd354f5A56E00E710B90EF4201db2448d";
 
+  export const uniswapv3Quoter2="0x61fFE014bA17989E743c5F6cB21bF9697530B21e";
+  export const uniswapv3Quoter1="0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6";
+  export const pancakeswapv3Quoter2="0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997";
+  export const pancakeswapv3Quoter1='0x3652Fc6EDcbD76161b8554388867d3dAb65eCA93';
+  export const CamelotQuoterAMMV3="0x0Fc73040b26E9bC8514fA028D998E73A254Fa76E";
+  export const CamelotQuoterAMMV4="0x9b7A7c93Db745D5f6c679eeDa7Dd15CCd638C063";
+
+
 // Token Addresses
 export const TOKEN_ADDRESSES = {
   WETH: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",

@@ -1,4 +1,9 @@
+import { ethers } from "ethers";
 
+export function getProvider(): ethers.providers.WebSocketProvider {
+  const wsUrl = "wss://arb-mainnet.g.alchemy.com/v2/o--1ruggGezl5R36rrSDX8JiVouHQOJO";
+  return new ethers.providers.WebSocketProvider(wsUrl);
+}
 // Tenderly configuration for simulations
 export const TENDERLY_CONFIG = {
   account: "Volup",

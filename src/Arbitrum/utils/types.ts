@@ -1,6 +1,6 @@
 
 import { ethers } from "ethers";
-import { DexType } from "./types";
+import { BigNumberish } from "ethers";
 
 // Define types used throughout the application
 export type DexType = 
@@ -33,6 +33,8 @@ export interface CallData {
   requiresApproval: boolean;
   approvalToken: string;
   approvalAmount: ethers.BigNumberish;
+  to: string;          // endereço do contrato a ser chamado
+  data: string;        // calldata da função
 }
 
 // Arbitrage route
@@ -40,6 +42,7 @@ export interface ArbitrageRoute {
   path: TokenInfo[];
   dexes?: DexType[];
   netProfit: ethers.BigNumberish;
+  quote: string;
 }
 
 // Quote result from DEX
@@ -91,4 +94,44 @@ export interface BuiltRoute {
 // Log metadata for enhanced logging
 export interface LogMetadata {
   [key: string]: any;
+}
+
+export type Call = {
+  to: string;          // endereço do contrato a ser chamado
+  data: string;        // calldata da função
+  value?: bigint;      // ETH enviado junto, se necessário
+};
+
+interface PoolData {
+  router: string;
+}
+
+export type SwapStep = {
+  dex: string;               // Nome do DEX, ex: "uniswapv3"
+  tokenIn: string;           // Endereço do token de entrada
+  tokenOut: string;          // Endereço do token de saída
+  amountIn: bigint;
+  amountOut: bigint;          // Quantidade de entrada
+  amountOutMin?: bigint;     // Quantidade mínima de saída esperada
+  path?: string[];           // Caminho (usado por alguns DEXs como Uniswap V2/V3)
+  extra?: any; 
+  router:string;  
+  to: string;          // endereço do contrato a ser chamado
+  data: string;        // calldata da função
+  value?: bigint; 
+  poolData?: PoolData | string;           // Campo opcional para parâmetros específicos (ex: fee tiers da Uniswap V3)
+};
+
+
+
+export interface MyTransactionRequest {
+  to: string; // endereço destino da transação
+  data: string; // calldata hex string
+  value?: BigNumberish; // valor enviado em wei (opcional)
+  gasLimit?: BigNumberish; // limite de gás (opcional)
+  nonce?: number; // nonce da transação (opcional)
+  gasPrice?: BigNumberish; // preço do gás (opcional)
+  maxFeePerGas?: BigNumberish; // EIP-1559 max fee per gas (opcional)
+  maxPriorityFeePerGas?: BigNumberish; // EIP-1559 max priority fee (opcional)
+  // Pode adicionar outros campos do ethers.providers.TransactionRequest se desejar
 }

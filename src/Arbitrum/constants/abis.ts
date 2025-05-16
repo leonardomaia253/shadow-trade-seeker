@@ -36,16 +36,12 @@ export const UNISWAP_V3_QUOTER_ABI = [
   "function quoteExactInput(bytes memory path, uint256 amountIn) external returns (uint256 amountOut)"
 ];
 
-export const CHAINLINK_AGGREGATOR_ABI = [
-  "function latestRoundData() view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)",
-  "function decimals() view returns (uint8)"
-];
-
 export const CURVE_POOL_ABI = [
     "function get_dy(int128 i, int128 j, uint256 dx) external view returns (uint256)",
     "function get_dy_underlying(int128 i, int128 j, uint256 dx) external view returns (uint256)",
     "function balances(uint256 index) external view returns (uint256)"
 ];
+
 
 export const MAVERICK_V2_PAIR_ABI = [
     "function getBin(uint128 binId) external view returns (Bin memory)",

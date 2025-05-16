@@ -74,7 +74,7 @@ async function getTokenPrice(token: TokenInfo): Promise<number> {
   }
 }
 
-export async function estimateGasUsage(path: TokenInfo[]): Promise<number> {
+export async function estimateGasUsage(path: string[]): Promise<number> {
   // Base gas cost for a transaction
   const baseGas = 21000;
   
