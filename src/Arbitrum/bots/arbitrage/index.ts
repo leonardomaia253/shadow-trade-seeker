@@ -109,7 +109,7 @@ async function loop() {
     } catch (err) {
       console.error("❌ Erro no loop principal:", err);
     }
-    await sleep(10_000); // 10 segundos entre ciclos
+    await sleep(1000); // 10 segundos entre ciclos
   }
 }
 
