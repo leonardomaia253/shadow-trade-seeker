@@ -22,28 +22,11 @@ async function startBot(supabase, config) {
     metadata: { baseToken, profitThreshold }
   });
   
-  // Log additional startup information
-  await supabase.from('bot_logs').insert({
-    level: 'debug',
-    message: 'Initializing price feeds and swap routes',
-    category: 'initialization',
-    bot_type: 'arbitrage',
-    source: 'system',
-    metadata: { 
-      poolsLoaded: 32,
-      supportedDEXs: ['Uniswap', 'SushiSwap', 'Curve', 'Balancer'],
-      networkID: 42161
-    }
-  });
-  
-  // Update bot status
+  // Update bot status in database to trigger the bot to start
   await supabase.from('bot_statistics').update({ 
     is_running: true,
     updated_at: new Date().toISOString() 
   }).eq('bot_type', 'arbitrage');
-
-
-  executeArbitrageCycle(supabase, config);
   
   return { success: true, message: "Bot started successfully" };
 }
@@ -59,7 +42,7 @@ async function stopBot(supabase) {
     source: 'system'
   });
   
-  // Update bot status
+  // Update bot status in database to trigger the bot to stop
   await supabase.from('bot_statistics').update({ 
     is_running: false,
     updated_at: new Date().toISOString() 
@@ -68,164 +51,75 @@ async function stopBot(supabase) {
   return { success: true, message: "Bot stopped successfully" };
 }
 
-// For demonstration purposes: simulate bot transactions
-async function simulateArbitrageTransactions(supabase) {
-  const dexes = ["Uniswap", "SushiSwap", "Curve", "Balancer"];
-  const tokens = ["USDC", "WETH", "USDT", "ARB", "LINK"];
+// Function to update the bot's configuration
+async function updateBotConfig(supabase, config) {
+  const { baseToken, profitThreshold, gasMultiplier, maxGasPrice } = config;
   
-  // Simulate a few transactions over time
-  for (let i = 0; i < 5; i++) {
-    // Wait random time between transactions (1-8 seconds)
-    await new Promise(r => setTimeout(r, Math.random() * 7000 + 1000));
-    
-    // Random parameters
-    const isSuccess = Math.random() > 0.3; // 70% success rate
-    const profit = isSuccess ? (Math.random() * 0.02 + 0.001) : 0;
-    const gas = Math.random() * 0.005 + 0.001;
-    const net = profit - gas;
-    
-    const fromToken = tokens[Math.floor(Math.random() * tokens.length)];
-    const toToken = tokens[Math.floor(Math.random() * tokens.length)];
-    const dex = dexes[Math.floor(Math.random() * dexes.length)];
-    
-    // Generate random transaction hash
-    const txHash = "0x" + [...Array(64)].map(() => Math.floor(Math.random() * 16).toString(16)).join('');
-    
-    // Add log entries for the transaction
-    const logLevel = isSuccess ? 'info' : (Math.random() > 0.5 ? 'warn' : 'error');
-    const logMessage = isSuccess
-      ? `Successful arbitrage: ${fromToken} → ${toToken} via ${dex} with profit ${profit.toFixed(6)} ETH`
-      : `Failed arbitrage attempt: ${fromToken} → ${toToken} via ${dex}`;
-      
-    await supabase.from('bot_logs').insert({
-      level: logLevel,
-      message: logMessage,
-      category: 'transaction',
-      bot_type: 'arbitrage',
-      source: 'executor',
-      tx_hash: isSuccess ? txHash : undefined,
-      metadata: {
-        fromToken,
-        toToken,
-        dex,
-        profit: profit.toFixed(6),
-        gas: gas.toFixed(6),
-        net: net.toFixed(6),
-        success: isSuccess,
-        timestamp: new Date().toISOString()
-      }
-    });
-    
-    // If it failed, add an error log
-    if (!isSuccess) {
-      const errorReasons = [
-        'Insufficient liquidity in pool',
-        'Price slippage too high',
-        'Transaction reverted',
-        'Gas price spike',
-        'Route became unprofitable'
-      ];
-      
-      const errorReason = errorReasons[Math.floor(Math.random() * errorReasons.length)];
-      
-      await supabase.from('bot_logs').insert({
-        level: 'error',
-        message: `Arbitrage error: ${errorReason}`,
-        category: 'error',
-        bot_type: 'arbitrage',
-        source: 'executor',
-        metadata: {
-          reason: errorReason,
-          fromToken,
-          toToken,
-          dex
-        }
-      });
-      
-      // Add debug log with technical details
-      await supabase.from('bot_logs').insert({
-        level: 'debug',
-        message: `Technical details for failed transaction`,
-        category: 'debug',
-        bot_type: 'arbitrage',
-        source: 'executor',
-        metadata: {
-          gasPrice: Math.floor(Math.random() * 100) + 50 + ' gwei',
-          blockNumber: Math.floor(Math.random() * 1000000) + 10000000,
-          nodeResponse: {
-            code: Math.floor(Math.random() * 100) + 1,
-            message: `Error: ${errorReason} at block #${Math.floor(Math.random() * 1000000) + 10000000}`
-          }
-        }
-      });
+  // Log configuration update
+  await supabase.from('bot_logs').insert({
+    level: 'info',
+    message: `Bot configuration updated: profit threshold=${profitThreshold} ETH, base token=${baseToken.symbol}`,
+    category: 'configuration',
+    bot_type: 'arbitrage',
+    source: 'system',
+    metadata: { 
+      baseToken, 
+      profitThreshold,
+      gasMultiplier,
+      maxGasPrice
     }
-    
-    // Record transaction
-    await supabase.from('bot_transactions').insert({
-      id: crypto.randomUUID(),
-      bot_type: 'arbitrage',
-      tx_hash: txHash,
-      status: isSuccess ? 'success' : 'failed',
-      profit: profit,
-      action: `Arbitrage ${fromToken}→${toToken} via ${dex}`,
-      gas: gas,
-      protocol: dex
-    });
-    
-    // Update statistics if successful
-    if (isSuccess) {
-      const { data: stats } = await supabase
-        .from('bot_statistics')
-        .select('*')
-        .eq('bot_type', 'arbitrage')
-        .single();
-      
-      if (stats) {
-        const newTotalProfit = (parseFloat(stats.total_profit) || 0) + profit;
-        const newTxCount = (parseInt(stats.transactions_count) || 0) + 1;
-        const newGasSpent = (parseFloat(stats.gas_spent) || 0) + gas;
-        const successfulTxs = Math.round(newTxCount * (parseFloat(stats.success_rate) || 0) / 100) + 1;
-        const newSuccessRate = (successfulTxs / newTxCount) * 100;
-        const newAvgProfit = newTotalProfit / successfulTxs;
-        
-        await supabase
-          .from('bot_statistics')
-          .update({
-            total_profit: newTotalProfit,
-            success_rate: newSuccessRate,
-            average_profit: newAvgProfit,
-            gas_spent: newGasSpent,
-            transactions_count: newTxCount,
-            updated_at: new Date().toISOString()
-          })
-          .eq('bot_type', 'arbitrage');
-      }
-    } else {
-      // Just update counts for failed transactions
-      const { data: stats } = await supabase
-        .from('bot_statistics')
-        .select('transactions_count, success_rate, gas_spent')
-        .eq('bot_type', 'arbitrage')
-        .single();
-      
-      if (stats) {
-        const newTxCount = (parseInt(stats.transactions_count) || 0) + 1;
-        const successfulTxs = Math.round(newTxCount * (parseFloat(stats.success_rate) || 0) / 100);
-        const newSuccessRate = (successfulTxs / newTxCount) * 100;
-        const newGasSpent = (parseFloat(stats.gas_spent) || 0) + gas;
-        
-        await supabase
-          .from('bot_statistics')
-          .update({
-            transactions_count: newTxCount,
-            success_rate: newSuccessRate,
-            gas_spent: newGasSpent,
-            updated_at: new Date().toISOString()
-          })
-          .eq('bot_type', 'arbitrage');
-      }
-    }
+  });
+  
+  // The actual bot will pick up these configuration changes from the database
+  // and apply them on the next execution cycle
+  
+  return { success: true, message: "Configuration updated successfully" };
+}
+
+// Function to get bot status and statistics
+async function getBotStatus(supabase) {
+  // Get current bot statistics
+  const { data: statistics, error: statsError } = await supabase
+    .from('bot_statistics')
+    .select('*')
+    .eq('bot_type', 'arbitrage')
+    .single();
+  
+  if (statsError) {
+    throw new Error(`Failed to fetch bot statistics: ${statsError.message}`);
   }
+  
+  // Get recent transactions (last 10)
+  const { data: transactions, error: txError } = await supabase
+    .from('bot_transactions')
+    .select('*')
+    .eq('bot_type', 'arbitrage')
+    .order('timestamp', { ascending: false })
+    .limit(10);
+  
+  if (txError) {
+    throw new Error(`Failed to fetch transactions: ${txError.message}`);
+  }
+  
+  // Get recent logs (last 20)
+  const { data: logs, error: logsError } = await supabase
+    .from('bot_logs')
+    .select('*')
+    .eq('bot_type', 'arbitrage')
+    .order('timestamp', { ascending: false })
+    .limit(20);
+  
+  if (logsError) {
+    throw new Error(`Failed to fetch logs: ${logsError.message}`);
+  }
+  
+  return {
+    success: true,
+    status: statistics?.is_running ? "running" : "stopped",
+    statistics,
+    transactions,
+    logs
+  };
 }
 
 serve(async (req) => {
@@ -252,6 +146,12 @@ serve(async (req) => {
         break;
       case 'stop':
         result = await stopBot(supabase);
+        break;
+      case 'updateConfig':
+        result = await updateBotConfig(supabase, config);
+        break;
+      case 'status':
+        result = await getBotStatus(supabase);
         break;
       default:
         throw new Error(`Unknown action: ${action}`);
