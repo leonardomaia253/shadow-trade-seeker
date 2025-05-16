@@ -54,6 +54,7 @@ export type Database = {
           bot_type: string
           gas_spent: number
           id: string
+          is_running: boolean | null
           success_rate: number
           total_profit: number
           transactions_count: number
@@ -64,6 +65,7 @@ export type Database = {
           bot_type: string
           gas_spent?: number
           id?: string
+          is_running?: boolean | null
           success_rate?: number
           total_profit?: number
           transactions_count?: number
@@ -74,6 +76,7 @@ export type Database = {
           bot_type?: string
           gas_spent?: number
           id?: string
+          is_running?: boolean | null
           success_rate?: number
           total_profit?: number
           transactions_count?: number

@@ -48,13 +48,14 @@ const BotPerformance = ({ stats }: BotPerformanceProps) => {
       const dailyProfits = new Map<string, number>();
       
       data.forEach(tx => {
-        const date = format(new Date(tx.timestamp), 'yyyy-MM-dd');
-        const profit = parseFloat(tx.profit || 0) - parseFloat(tx.gas || 0);
+        const date = format(new Date(tx.timestamp || new Date()), 'yyyy-MM-dd');
+        const profit = typeof tx.profit === 'string' ? parseFloat(tx.profit || '0') : (tx.profit || 0);
+        const gas = typeof tx.gas === 'string' ? parseFloat(tx.gas || '0') : (tx.gas || 0);
         
         if (dailyProfits.has(date)) {
-          dailyProfits.set(date, dailyProfits.get(date)! + profit);
+          dailyProfits.set(date, dailyProfits.get(date)! + profit - gas);
         } else {
-          dailyProfits.set(date, profit);
+          dailyProfits.set(date, profit - gas);
         }
       });
       

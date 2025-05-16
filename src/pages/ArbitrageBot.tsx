@@ -10,6 +10,19 @@ import BotPerformance from '@/components/BotPerformance';
 import { TokenInfo } from '@/Arbitrum/utils/types';
 import { enhancedLogger } from '@/Arbitrum/utils/enhancedLogger';
 
+// Define the bot statistics type to match the database schema
+interface BotStatistics {
+  id: string;
+  bot_type: string;
+  total_profit: string | number;
+  success_rate: string | number;
+  average_profit: string | number;
+  gas_spent: string | number;
+  transactions_count: string | number;
+  updated_at: string;
+  is_running?: boolean;
+}
+
 const ArbitrageBot = () => {
   const { toast } = useToast();
   const [isRunning, setIsRunning] = useState(false);
@@ -49,16 +62,17 @@ const ArbitrageBot = () => {
         }
         
         if (statsData) {
+          const typedStatsData = statsData as BotStatistics;
           setStats({
-            totalProfit: parseFloat(statsData.total_profit) || 0,
-            successRate: parseFloat(statsData.success_rate) || 0,
-            avgProfit: parseFloat(statsData.average_profit) || 0,
-            totalTxs: parseInt(statsData.transactions_count) || 0,
-            gasSpent: parseFloat(statsData.gas_spent) || 0,
-            is_running: statsData.is_running || false
+            totalProfit: typeof typedStatsData.total_profit === 'string' ? parseFloat(typedStatsData.total_profit) : (typedStatsData.total_profit || 0),
+            successRate: typeof typedStatsData.success_rate === 'string' ? parseFloat(typedStatsData.success_rate) : (typedStatsData.success_rate || 0),
+            avgProfit: typeof typedStatsData.average_profit === 'string' ? parseFloat(typedStatsData.average_profit) : (typedStatsData.average_profit || 0),
+            totalTxs: typeof typedStatsData.transactions_count === 'string' ? parseInt(typedStatsData.transactions_count) : (typedStatsData.transactions_count || 0),
+            gasSpent: typeof typedStatsData.gas_spent === 'string' ? parseFloat(typedStatsData.gas_spent) : (typedStatsData.gas_spent || 0),
+            is_running: typedStatsData.is_running || false
           });
           
-          setIsRunning(statsData.is_running || false);
+          setIsRunning(typedStatsData.is_running || false);
         }
         
         // Fetch recent transactions
@@ -95,13 +109,13 @@ const ArbitrageBot = () => {
       .on('postgres_changes', 
           { event: 'UPDATE', schema: 'public', table: 'bot_statistics', filter: 'bot_type=eq.arbitrage' },
           (payload) => {
-            const newData = payload.new;
+            const newData = payload.new as BotStatistics;
             setStats({
-              totalProfit: parseFloat(newData.total_profit) || 0,
-              successRate: parseFloat(newData.success_rate) || 0,
-              avgProfit: parseFloat(newData.average_profit) || 0,
-              totalTxs: parseInt(newData.transactions_count) || 0,
-              gasSpent: parseFloat(newData.gas_spent) || 0,
+              totalProfit: typeof newData.total_profit === 'string' ? parseFloat(newData.total_profit) : (newData.total_profit || 0),
+              successRate: typeof newData.success_rate === 'string' ? parseFloat(newData.success_rate) : (newData.success_rate || 0),
+              avgProfit: typeof newData.average_profit === 'string' ? parseFloat(newData.average_profit) : (newData.average_profit || 0),
+              totalTxs: typeof newData.transactions_count === 'string' ? parseInt(newData.transactions_count.toString()) : (newData.transactions_count || 0),
+              gasSpent: typeof newData.gas_spent === 'string' ? parseFloat(newData.gas_spent) : (newData.gas_spent || 0),
               is_running: newData.is_running || false
             });
             
