@@ -7,6 +7,7 @@ import BotControlPanel from '@/components/BotControlPanel';
 import OpportunitiesTable from '@/components/OpportunitiesTable';
 import BotConfiguration from '@/components/BotConfiguration';
 import BotPerformance from '@/components/BotPerformance';
+import BotLogsViewer from '@/components/BotLogsViewer';
 import { TokenInfo } from '@/Arbitrum/utils/types';
 import { enhancedLogger } from '@/Arbitrum/utils/enhancedLogger';
 
@@ -210,6 +211,11 @@ const ArbitrageBot = () => {
               profitThreshold={profitThreshold}
             />
           </div>
+        </div>
+        
+        {/* Add BotLogsViewer component below the control panel */}
+        <div className="mb-6">
+          <BotLogsViewer />
         </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -22,6 +22,20 @@ async function startBot(supabase, config) {
     metadata: { baseToken, profitThreshold }
   });
   
+  // Log additional startup information
+  await supabase.from('bot_logs').insert({
+    level: 'debug',
+    message: 'Initializing price feeds and swap routes',
+    category: 'initialization',
+    bot_type: 'arbitrage',
+    source: 'system',
+    metadata: { 
+      poolsLoaded: 32,
+      supportedDEXs: ['Uniswap', 'SushiSwap', 'Curve', 'Balancer'],
+      networkID: 42161
+    }
+  });
+  
   // Update bot status
   await supabase.from('bot_statistics').update({ 
     is_running: true,
@@ -77,6 +91,75 @@ async function simulateArbitrageTransactions(supabase) {
     
     // Generate random transaction hash
     const txHash = "0x" + [...Array(64)].map(() => Math.floor(Math.random() * 16).toString(16)).join('');
+    
+    // Add log entries for the transaction
+    const logLevel = isSuccess ? 'info' : (Math.random() > 0.5 ? 'warn' : 'error');
+    const logMessage = isSuccess
+      ? `Successful arbitrage: ${fromToken} → ${toToken} via ${dex} with profit ${profit.toFixed(6)} ETH`
+      : `Failed arbitrage attempt: ${fromToken} → ${toToken} via ${dex}`;
+      
+    await supabase.from('bot_logs').insert({
+      level: logLevel,
+      message: logMessage,
+      category: 'transaction',
+      bot_type: 'arbitrage',
+      source: 'executor',
+      tx_hash: isSuccess ? txHash : undefined,
+      metadata: {
+        fromToken,
+        toToken,
+        dex,
+        profit: profit.toFixed(6),
+        gas: gas.toFixed(6),
+        net: net.toFixed(6),
+        success: isSuccess,
+        timestamp: new Date().toISOString()
+      }
+    });
+    
+    // If it failed, add an error log
+    if (!isSuccess) {
+      const errorReasons = [
+        'Insufficient liquidity in pool',
+        'Price slippage too high',
+        'Transaction reverted',
+        'Gas price spike',
+        'Route became unprofitable'
+      ];
+      
+      const errorReason = errorReasons[Math.floor(Math.random() * errorReasons.length)];
+      
+      await supabase.from('bot_logs').insert({
+        level: 'error',
+        message: `Arbitrage error: ${errorReason}`,
+        category: 'error',
+        bot_type: 'arbitrage',
+        source: 'executor',
+        metadata: {
+          reason: errorReason,
+          fromToken,
+          toToken,
+          dex
+        }
+      });
+      
+      // Add debug log with technical details
+      await supabase.from('bot_logs').insert({
+        level: 'debug',
+        message: `Technical details for failed transaction`,
+        category: 'debug',
+        bot_type: 'arbitrage',
+        source: 'executor',
+        metadata: {
+          gasPrice: Math.floor(Math.random() * 100) + 50 + ' gwei',
+          blockNumber: Math.floor(Math.random() * 1000000) + 10000000,
+          nodeResponse: {
+            code: Math.floor(Math.random() * 100) + 1,
+            message: `Error: ${errorReason} at block #${Math.floor(Math.random() * 1000000) + 10000000}`
+          }
+        }
+      });
+    }
     
     // Record transaction
     await supabase.from('bot_transactions').insert({

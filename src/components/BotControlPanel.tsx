@@ -31,6 +31,15 @@ const BotControlPanel = ({ isRunning, onStart, onStop, stats, baseToken, profitT
     
     setIsProcessing(true);
     try {
+      // Log UI action
+      await supabase.from('bot_logs').insert({
+        level: 'info',
+        message: 'Start button clicked',
+        category: 'user_action',
+        bot_type: 'arbitrage',
+        source: 'user'
+      });
+      
       // Call the edge function to start the bot with configuration
       const { data, error } = await supabase.functions.invoke('arbitrage-bot-control', {
         body: {
@@ -52,6 +61,17 @@ const BotControlPanel = ({ isRunning, onStart, onStop, stats, baseToken, profitT
       onStart();
     } catch (err) {
       console.error("Failed to start bot:", err);
+      
+      // Log the error
+      await supabase.from('bot_logs').insert({
+        level: 'error',
+        message: `Failed to start bot: ${err.message || 'Unknown error'}`,
+        category: 'user_action',
+        bot_type: 'arbitrage',
+        source: 'user',
+        metadata: { error: err.message, stack: err.stack }
+      });
+      
       toast({
         title: "Failed to start bot",
         description: err.message || "An error occurred",
@@ -67,6 +87,15 @@ const BotControlPanel = ({ isRunning, onStart, onStop, stats, baseToken, profitT
     
     setIsProcessing(true);
     try {
+      // Log UI action
+      await supabase.from('bot_logs').insert({
+        level: 'info',
+        message: 'Stop button clicked',
+        category: 'user_action',
+        bot_type: 'arbitrage',
+        source: 'user'
+      });
+      
       // Call the edge function to stop the bot
       const { data, error } = await supabase.functions.invoke('arbitrage-bot-control', {
         body: {
@@ -84,6 +113,17 @@ const BotControlPanel = ({ isRunning, onStart, onStop, stats, baseToken, profitT
       onStop();
     } catch (err) {
       console.error("Failed to stop bot:", err);
+      
+      // Log the error
+      await supabase.from('bot_logs').insert({
+        level: 'error',
+        message: `Failed to stop bot: ${err.message || 'Unknown error'}`,
+        category: 'user_action', 
+        bot_type: 'arbitrage',
+        source: 'user',
+        metadata: { error: err.message, stack: err.stack }
+      });
+      
       toast({
         title: "Failed to stop bot",
         description: err.message || "An error occurred",
