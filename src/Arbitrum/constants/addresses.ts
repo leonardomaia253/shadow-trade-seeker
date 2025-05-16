@@ -46,24 +46,27 @@ export const DEX_ROUTER = {
   ramsesv2: "0xaa273216cc9201a1e4285ca623f584badc736944",
 };
 
-  export const uniswapv2="0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24";
-  export const uniswapv3Router="0xE592427A0AEce92De3Edee1F18E0157C05861564";
-  export const uniswapv4Router="0xA51afAFe0263b40EdaEf0Df8781eA9aa03E381a3";
-  export const sushiswapv2Router="0xA7caC4207579A179c1069435d032ee0F9F150e5c";
-  export const sushiswapv3Router="0xA7caC4207579A179c1069435d032ee0F9F150e5c";
-  export const pancakeswapv3Router="0x13f4ea83d0bd40e75c8222255bc855a974568dd4";
-  export const curveRouter="0x2191718cd32d02b8e60badffea33e4b5dd9a0a0d";
-  export const ramsesv2Router="0xaa273216cc9201a1e4285ca623f584badc736944";
-  export const maverickv2Router="0x5c3b380e5Aeec389d1014Da3Eb372FA2C9e0fc76";
-  export const camelotRouter="0xc873fEcbd354f5A56E00E710B90EF4201db2448d";
+export const uniswapv2="0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24";
+export const uniswapv3Router="0xE592427A0AEce92De3Edee1F18E0157C05861564";
+export const uniswapv4Router="0xA51afAFe0263b40EdaEf0Df8781eA9aa03E381a3";
+export const sushiswapv2Router="0xA7caC4207579A179c1069435d032ee0F9F150e5c";
+export const sushiswapv3Router="0xA7caC4207579A179c1069435d032ee0F9F150e5c";
+export const pancakeswapv3Router="0x13f4ea83d0bd40e75c8222255bc855a974568dd4";
+export const curveRouter="0x2191718cd32d02b8e60badffea33e4b5dd9a0a0d";
+export const ramsesv2Router="0xaa273216cc9201a1e4285ca623f584badc736944";
+export const maverickv2Router="0x5c3b380e5Aeec389d1014Da3Eb372FA2C9e0fc76";
+export const camelotRouter="0xc873fEcbd354f5A56E00E710B90EF4201db2448d";
 
-  export const uniswapv3Quoter2="0x61fFE014bA17989E743c5F6cB21bF9697530B21e";
-  export const uniswapv3Quoter1="0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6";
-  export const pancakeswapv3Quoter2="0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997";
-  export const pancakeswapv3Quoter1='0x3652Fc6EDcbD76161b8554388867d3dAb65eCA93';
-  export const CamelotQuoterAMMV3="0x0Fc73040b26E9bC8514fA028D998E73A254Fa76E";
-  export const CamelotQuoterAMMV4="0x9b7A7c93Db745D5f6c679eeDa7Dd15CCd638C063";
+export const uniswapv3Quoter2="0x61fFE014bA17989E743c5F6cB21bF9697530B21e";
+export const uniswapv3Quoter1="0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6";
+export const pancakeswapv3Quoter2="0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997";
+export const pancakeswapv3Quoter1='0x3652Fc6EDcbD76161b8554388867d3dAb65eCA93';
+export const CamelotQuoterAMMV3="0x0Fc73040b26E9bC8514fA028D998E73A254Fa76E";
+export const CamelotQuoterAMMV4="0x9b7A7c93Db745D5f6c679eeDa7Dd15CCd638C063";
 
+// Add the missing constants
+export const WETH = "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1";
+export const CHAINLINK_FEED_REGISTRY = "0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612";
 
 // Token Addresses
 export const TOKEN_ADDRESSES = {
@@ -72,6 +75,17 @@ export const TOKEN_ADDRESSES = {
   USDT: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
   DAI: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
   WBTC: "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
+};
+
+// Common tokens for Arbitrum
+export const COMMON_TOKENS_ARBITRUM = {
+  WETH: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+  USDC: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
+  USDT: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+  DAI: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
+  WBTC: "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
+  ARB: "0x912CE59144191C1204E64559FE8253a0e49E6548",
+  GMX: "0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a",
 };
 
 // Flashloan Providers
@@ -90,4 +104,3 @@ export const MEV_RELATED = {
 
 // Executor contract address
 export const EXECUTOR_CONTRACT = "0xebc996030ad65e113ba2f03e55de080044b83dca";
-

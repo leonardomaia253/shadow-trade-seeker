@@ -1,7 +1,7 @@
 
 import { ethers } from "ethers";
 import { wsRpcUrl } from "./config";
-import { enhancedLogger } from "./utils/enhancedLogger";
+import { enhancedLogger } from "./enhancedLogger";
 
 /**
  * Sets up a WebSocket listener for the mempool
@@ -19,7 +19,7 @@ export function listenMempool(
       wsRpcUrl
     );
     
-    enhancedLogger.logEvent('info', 'Starting mempool listener', {
+    enhancedLogger.info('Starting mempool listener', {
       category: 'system',
       source: 'mempool'
     });
@@ -52,7 +52,7 @@ export function listenMempool(
           await onTransaction(txReceipt);
         }
       } catch (err) {
-        enhancedLogger.logEvent('error', `Error processing pending transaction: ${err instanceof Error ? err.message : 'Unknown error'}`, {
+        enhancedLogger.error(`Error processing pending transaction: ${err instanceof Error ? err.message : 'Unknown error'}`, {
           category: 'error',
           source: 'mempool',
           data: err
@@ -62,21 +62,21 @@ export function listenMempool(
 
     // Log connection events
     wsProvider._websocket.on('open', () => {
-      enhancedLogger.logEvent('info', 'WebSocket connected to mempool', {
+      enhancedLogger.info('WebSocket connected to mempool', {
         category: 'system',
         source: 'mempool'
       });
     });
 
     wsProvider._websocket.on('close', (code: number, reason: string) => {
-      enhancedLogger.logEvent('warn', `WebSocket disconnected from mempool: ${code} - ${reason}`, {
+      enhancedLogger.warn(`WebSocket disconnected from mempool: ${code} - ${reason}`, {
         category: 'system',
         source: 'mempool'
       });
     });
 
     wsProvider._websocket.on('error', (error: Error) => {
-      enhancedLogger.logEvent('error', `WebSocket error: ${error.message}`, {
+      enhancedLogger.error(`WebSocket error: ${error.message}`, {
         category: 'error',
         source: 'mempool',
         data: error
@@ -90,12 +90,12 @@ export function listenMempool(
         try {
           wsProvider.removeAllListeners();
           wsProvider._websocket.close();
-          enhancedLogger.logEvent('info', 'WebSocket disconnected and listeners removed', {
+          enhancedLogger.info('WebSocket disconnected and listeners removed', {
             category: 'system',
             source: 'mempool'
           });
         } catch (err) {
-          enhancedLogger.logEvent('error', `Error stopping WebSocket: ${err instanceof Error ? err.message : 'Unknown error'}`, {
+          enhancedLogger.error(`Error stopping WebSocket: ${err instanceof Error ? err.message : 'Unknown error'}`, {
             category: 'error',
             source: 'mempool',
             data: err
@@ -104,7 +104,7 @@ export function listenMempool(
       }
     };
   } catch (err) {
-    enhancedLogger.logEvent('error', `Failed to setup mempool listener: ${err instanceof Error ? err.message : 'Unknown error'}`, {
+    enhancedLogger.error(`Failed to setup mempool listener: ${err instanceof Error ? err.message : 'Unknown error'}`, {
       category: 'error',
       source: 'mempool',
       data: err

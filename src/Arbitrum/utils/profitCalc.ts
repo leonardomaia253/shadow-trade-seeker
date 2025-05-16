@@ -289,7 +289,7 @@ function calculateFrontrunProfit(
  */
 async function decodeDexPair(
   tx: ethers.providers.TransactionResponse, 
-  dex: DexType
+  dexName: string
 ): Promise<{
   pairAddress?: string;
   tokenIn?: string;
@@ -298,8 +298,13 @@ async function decodeDexPair(
   path?: string[];
 }> {
   try {
+    // Get provider from transaction
+    const currentProvider = tx.provider as ethers.providers.Provider;
+    if (!currentProvider) {
+      throw new Error("Transaction has no provider");
+    }
+    
     // Tentar decodificar a função de swap
-    const provider = tx.provider as ethers.providers.Provider;
     const decoded = await decodeSwap(tx);
     
     if (!decoded) {
@@ -310,7 +315,7 @@ async function decodeDexPair(
       return {};
     }
     
-    enhancedLogger.debug(`Decoded ${dex} swap: ${decoded.tokenIn} -> ${decoded.tokenOut}, amount: ${decoded.amountIn.toString()}`, {
+    enhancedLogger.debug(`Decoded ${dexName} swap: ${decoded.tokenIn} -> ${decoded.tokenOut}, amount: ${decoded.amountIn.toString()}`, {
       category: "decoder", 
       botType: "profitCalc"
     });
@@ -318,17 +323,17 @@ async function decodeDexPair(
     // Calcular o endereço do par baseado no tipo de DEX
     let pairAddress = "";
     
-    if (dex === 'uniswapv2' || dex === 'sushiswapv2') {
+    if (dexName === 'uniswapv2' || dexName === 'sushiswapv2') {
       // Para V2, o endereço do par pode ser calculado usando CREATE2
       // Precisamos do factory address e init code hash específicos de cada DEX
-      const factoryAddresses = {
-        ['uniswapv2']: "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
-        ['sushiswapv2']: "0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac"
+      const factoryAddresses: Record<string, string> = {
+        'uniswapv2': "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
+        'sushiswapv2': "0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac"
       };
       
-      const initCodeHashes = {
-        ['uniswapv2']: "0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f",
-        ['sushiswapv2']: "0xe18a34eb0e04b04f7a0ac29a6e80748dca96319b42c54d679cb821dca90c6303"
+      const initCodeHashes: Record<string, string> = {
+        'uniswapv2': "0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f",
+        'sushiswapv2': "0xe18a34eb0e04b04f7a0ac29a6e80748dca96319b42c54d679cb821dca90c6303"
       };
       
       // Ordenar tokens para cálculo do par
@@ -338,8 +343,8 @@ async function decodeDexPair(
         ? decoded.tokenOut : decoded.tokenIn;
       
       // Usar CREATE2 para calcular endereço do par
-      const factoryAddress = factoryAddresses[dex] || factoryAddresses['uniswapv2'];
-      const initCodeHash = initCodeHashes[dex] || initCodeHashes['uniswapv2'];
+      const factoryAddress = factoryAddresses[dexName] || factoryAddresses['uniswapv2'];
+      const initCodeHash = initCodeHashes[dexName] || initCodeHashes['uniswapv2'];
       
       const salt = ethers.utils.solidityKeccak256(
         ['address', 'address'],
@@ -351,7 +356,7 @@ async function decodeDexPair(
         salt,
         initCodeHash
       );
-    } else if (dex === 'uniswapv3') {
+    } else if (dexName === 'uniswapv3') {
       // Para V3, precisamos do fee tier para calcular o endereço do pool
       // Se não tivermos o fee, podemos tentar os tiers comuns
       const feeTiers = [500, 3000, 10000]; // 0.05%, 0.3%, 1%
@@ -364,12 +369,12 @@ async function decodeDexPair(
             decoded.tokenIn,
             decoded.tokenOut,
             fee,
-            provider
+            currentProvider
           );
           
           // Verificar se o pool existe consultando o slot0
           const poolAbi = ["function slot0() external view returns (uint160, int24, uint16, uint16, uint16, uint8, bool)"];
-          const poolContract = new ethers.Contract(poolAddress, poolAbi, provider);
+          const poolContract = new ethers.Contract(poolAddress, poolAbi, currentProvider);
           
           // Se esta chamada não falhar, o pool existe
           await poolContract.slot0();
@@ -445,7 +450,7 @@ async function computeV3PoolAddress(
 export async function getPriceImpactAndProfit(
   tx: ethers.providers.TransactionResponse
 ): Promise<{
-  dex: DexType;
+  dex: string;
   tokenIn: string;
   tokenOut: string;
   amountIn: ethers.BigNumber;
@@ -467,14 +472,20 @@ export async function getPriceImpactAndProfit(
     const dexesToTry = [
       'uniswapv3',
       'sushiswapv3',
-      'uniswav2',
+      'uniswapv2',
       'sushiswapv2',
       'camelot'
     ];
     
+    // Get provider from transaction
+    const currentProvider = tx.provider as ethers.providers.Provider;
+    if (!currentProvider) {
+      throw new Error("Transaction has no provider");
+    }
+    
     // Tentar decodificar a transação com cada DEX até encontrar um match
     let decodedData = null;
-    let matchedDex = DexType.UNISWAP_V3;
+    let matchedDex = "uniswapv3"; // Default
     
     for (const dex of dexesToTry) {
       decodedData = await decodeDexPair(tx, dex);
@@ -503,13 +514,12 @@ export async function getPriceImpactAndProfit(
     }
     
     // Buscar dados de liquidez do par
-    const provider = tx.provider as ethers.providers.Provider;
     const { reserve0, reserve1 } = await fetchPairReserves(
       pairAddress,
       tokenIn,
       tokenOut,
-      provider,
-      matchedDex
+      currentProvider,
+      matchedDex as DexType
     );
     
     // Determinar se tokenIn é token0 ou token1
@@ -536,20 +546,26 @@ export async function getPriceImpactAndProfit(
     let liquidityDepthUsd = ethers.BigNumber.from(0);
     
     try {
-      const [tokenInPrice, tokenOutPrice] = await Promise.all([
-        getTokenPrice(tokenIn),
-        getTokenPrice(tokenOut)
-      ]);
+      const tokenInPrice = await getTokenPrice(tokenIn, currentProvider);
+      const tokenOutPrice = await getTokenPrice(tokenOut, currentProvider);
       
       // Calcular profundidade de liquidez em USD usando o token de maior valor
-      if (tokenInPrice > 0) {
-        const tokenInDetails = await fetchTokenDetails(tokenIn, provider);
+      if (tokenInPrice > BigInt(0)) {
+        const tokenInDetails = await fetchTokenDetails(tokenIn, currentProvider);
         const tokenInAmount = reserve0.mul(ethers.BigNumber.from(10).pow(18 - tokenInDetails.decimals));
-        liquidityDepthUsd = tokenInAmount.mul(Math.floor(tokenInPrice * 100)).div(100);
-      } else if (tokenOutPrice > 0) {
-        const tokenOutDetails = await fetchTokenDetails(tokenOut, provider);
+        // Convert bigint to number before multiplication
+        const tokenInPriceNumber = Number(tokenInPrice) / 1e18;
+        liquidityDepthUsd = ethers.BigNumber.from(
+          Math.floor(Number(tokenInAmount) * tokenInPriceNumber)
+        );
+      } else if (tokenOutPrice > BigInt(0)) {
+        const tokenOutDetails = await fetchTokenDetails(tokenOut, currentProvider);
         const tokenOutAmount = reserve1.mul(ethers.BigNumber.from(10).pow(18 - tokenOutDetails.decimals));
-        liquidityDepthUsd = tokenOutAmount.mul(Math.floor(tokenOutPrice * 100)).div(100);
+        // Convert bigint to number before multiplication
+        const tokenOutPriceNumber = Number(tokenOutPrice) / 1e18;
+        liquidityDepthUsd = ethers.BigNumber.from(
+          Math.floor(Number(tokenOutAmount) * tokenOutPriceNumber)
+        );
       }
     } catch (err) {
       enhancedLogger.warn(`Error getting token prices: ${err instanceof Error ? err.message : String(err)}`, {
@@ -567,7 +583,7 @@ export async function getPriceImpactAndProfit(
     );
     
     // Estimar gas usado e custo
-    const estimatedGasUsed = matchedDex === DexType.UNISWAP_V3 ? 350000 : 250000; // estimativa de gas
+    const estimatedGasUsed = matchedDex === 'uniswapv3' ? 350000 : 250000; // estimativa de gas
     const gasPriceGwei = tx.gasPrice ? 
       parseFloat(ethers.utils.formatUnits(tx.gasPrice, "gwei")) : 
       1.0;

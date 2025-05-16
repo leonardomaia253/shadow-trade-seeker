@@ -13,7 +13,7 @@ const priceCache: Record<string, { price: bigint; timestamp: number }> = {};
 const CACHE_TTL = 60 * 1000; // 60 segundos
 
 // Função para buscar o preço de um token
-export async function getTokenPrice(tokenAddress: string, provider: ethers.providers.Provider): Promise<bigint> {
+export async function getTokenPrice(tokenAddress: string, provider?: ethers.providers.Provider): Promise<bigint> {
   try {
     const normalizedAddress = tokenAddress.toLowerCase();
     const now = Date.now();
