@@ -42,9 +42,8 @@ async function startBot(supabase, config) {
     updated_at: new Date().toISOString() 
   }).eq('bot_type', 'arbitrage');
 
-  // In a real implementation, we would trigger actual bot execution here
-  // For demo: simulate bot activity by scheduling some transactions
-  simulateArbitrageTransactions(supabase);
+
+  executeArbitrageCycle(supabase, config);
   
   return { success: true, message: "Bot started successfully" };
 }
