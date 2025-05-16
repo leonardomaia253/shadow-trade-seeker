@@ -129,6 +129,7 @@ async function executeCycle() {
       ];
 
       try {
+        // Execute the bundle and capture the returned transaction
         const tx = await executeFlashloanBundle(contract, flashloans, calls, provider);
 
         console.log(`🚀 Transação enviada! Hash: ${tx.hash}`);

@@ -1,3 +1,4 @@
+
 import { ethers } from "ethers";
 import { Call } from "../../utils/types";
 import { EXECUTOR_CONTRACTARBITRUM } from "../../constants/contracts";
@@ -35,7 +36,7 @@ export async function executeFlashloanBundle(
   calls: Call[],
   provider: ethers.providers.Provider,
   overrides?: ethers.PayableOverrides
-) {
+): Promise<ethers.providers.TransactionResponse> {
   try {
     // Construir a transação
     const txRequest = await buildRouteTxRequest(contract, flashloanRequest, calls, overrides);
@@ -48,16 +49,28 @@ export async function executeFlashloanBundle(
       },
     ];
 
-    // Enviar bundle via bloXroute + MEV-Share
-    const provider = new ethers.providers.JsonRpcProvider("http://arb-mainnet.g.alchemy.com/v2/o--1ruggGezl5R36rrSDX8JiVouHQOJO");
-    const result = await sendBundle(bundleTransactions, provider);
+    // Enviar a transação diretamente
+    const tx = await contract.signer.sendTransaction(txRequest);
+    
+    console.log("✅ Transaction sent successfully:", tx.hash);
 
-    if (result.success) {
-      console.log("✅ Bundle enviado com sucesso");
-    } else {
-      console.error("❌ Falha no envio do bundle");
+    // Enviar bundle via bloXroute + MEV-Share (optional)
+    try {
+      const rpcProvider = new ethers.providers.JsonRpcProvider("http://arb-mainnet.g.alchemy.com/v2/o--1ruggGezl5R36rrSDX8JiVouHQOJO");
+      const result = await sendBundle(bundleTransactions, rpcProvider);
+
+      if (result.success) {
+        console.log("✅ Bundle sent successfully");
+      } else {
+        console.error("⚠️ Bundle sending failed, but transaction was sent");
+      }
+    } catch (bundleError) {
+      console.warn("⚠️ Bundle sending error, but transaction was sent:", bundleError);
     }
+
+    return tx;
   } catch (error) {
-    console.error("Erro executando flashloan bundle:", error);
+    console.error("❌ Error executing flashloan bundle:", error);
+    throw error; // Re-throw to handle in the calling function
   }
 }
