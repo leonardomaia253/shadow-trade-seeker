@@ -1,7 +1,7 @@
 
 import { ethers } from "ethers";
-import { DecodedSwapTransaction, DexType } from "../utils/types";
-import { enhancedLogger } from "../utils/enhancedLogger";
+import { DexType, DecodedSwapTransaction } from "./types";
+import { enhancedLogger } from "./enhancedLogger";
 
 // ABI fragments for decoding swap methods
 const UNISWAP_V2_ROUTER_ABI = [
@@ -151,6 +151,7 @@ function decodeV2Swap(
           amountOutMin,
           path,
           recipient: to,
+          to,
           deadline: args[4],
           dex: dexType
         };
@@ -165,6 +166,7 @@ function decodeV2Swap(
           amountOutMin: amountOut, // exact amount out
           path,
           recipient: to,
+          to,
           deadline: args[4],
           dex: dexType
         };
@@ -179,6 +181,7 @@ function decodeV2Swap(
           amountOutMin,
           path: [WETH, ...path.slice(1)], // Path should start with WETH
           recipient: to,
+          to,
           deadline: args[3],
           dex: dexType
         };
@@ -193,6 +196,7 @@ function decodeV2Swap(
           amountOutMin,
           path: [...path.slice(0, -1), WETH], // Path should end with WETH
           recipient: to,
+          to,
           deadline: args[4],
           dex: dexType
         };
@@ -231,8 +235,7 @@ function decodeV3Swap(
           tokenOut,
           amountIn,
           amountOutMinimum,
-          recipient,
-          deadline
+          recipient
         } = args[0];
         
         return {
@@ -241,7 +244,7 @@ function decodeV3Swap(
           amountIn: tokenIn.toLowerCase() === WETH.toLowerCase() && value.gt(0) ? value : amountIn,
           amountOutMin: amountOutMinimum,
           recipient,
-          deadline,
+          to: recipient,
           dex: dexType
         };
       }
@@ -251,8 +254,7 @@ function decodeV3Swap(
           path: pathBytes,
           amountIn,
           amountOutMinimum,
-          recipient,
-          deadline
+          recipient
         } = args[0];
         
         // Decode path from bytes in V3
@@ -265,7 +267,7 @@ function decodeV3Swap(
           amountIn: path[0].token.toLowerCase() === WETH.toLowerCase() && value.gt(0) ? value : amountIn,
           amountOutMin: amountOutMinimum,
           recipient,
-          deadline,
+          to: recipient,
           dex: dexType
         };
       }

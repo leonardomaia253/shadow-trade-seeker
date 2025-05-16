@@ -112,13 +112,16 @@ export interface DexSwap {
   amountOutMin?: ethers.BigNumberish;
   routerAddress: string;
   path?: string[];
+  recipient: string; // Added missing property
 }
 
 // Built Swap Call
 export interface BuiltSwapCall {
   target: string;
   data: string;
+  callData?: string; // Added missing property
   value?: ethers.BigNumberish;
+  approveToken?: string;
 }
 
 // Log metadata for enhanced logging
@@ -171,6 +174,8 @@ export interface DecodedSwapTransaction {
   tokenOut: string;
   amountIn: ethers.BigNumber;
   amountOutMin: ethers.BigNumber;
-  to: string;
+  recipient: string; // Added missing property
+  to?: string;
   path?: string[];
+  deadline?: number;
 }

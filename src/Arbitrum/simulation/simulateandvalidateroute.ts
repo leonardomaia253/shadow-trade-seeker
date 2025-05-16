@@ -1,7 +1,7 @@
 
 import { ethers } from "ethers";
 import { BuiltRoute, SimulationResult } from "../utils/types";
-import { enhancedLogger } from "../../utils/enhancedLogger";
+import { enhancedLogger } from "../utils/enhancedLogger";
 import axios from "axios";
 import { TENDERLY_CONFIG } from "../constants/config";
 

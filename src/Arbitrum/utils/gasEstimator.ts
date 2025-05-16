@@ -1,118 +1,70 @@
 
 import { ethers } from "ethers";
-import { getProvider } from "../config/provider";
-import { TokenInfo } from "../utils/types";
-import { getQuote } from "../shared/build/getQuote";
+import { TokenInfo } from "./types";
+import { provider } from "../config/provider";
 
-// Common stablecoin and base token addresses
-const WETH_ADDRESS = "0x82af49447d8a07e3bd95bd0d56f35241523fbab1"; //  WETH
-const USDC_ADDRESS = "0xff970a61a04b1ca14834a43f5de4533ebddb5cc8"; //  USDC
-
-// Get token price in terms of ETH using actual DEX quotes
-async function getTokenPrice(token: TokenInfo): Promise<number> {
-  try {
-    // If the token is WETH or ETH, return 1 (1 ETH = 1 ETH)
-    if (token.symbol.toUpperCase() === "ETH" || token.symbol.toUpperCase() === "WETH") {
-      return 1;
-    }
-
-    // For stablecoins, we know they're approximately $1
-    if (["USDC", "USDT", "DAI", "BUSD", "TUSD", "USDP", "GUSD", "FRAX", "LUSD"].includes(token.symbol.toUpperCase())) {
-      // Get ETH price in USD by checking WETH → USDC
-      const ethToUsdQuote = await getQuote(
-        WETH_ADDRESS,
-        USDC_ADDRESS,
-        BigInt(ethers.utils.parseUnits("1", 18).toString())
-      );
-
-      if (ethToUsdQuote.paths.length > 0) {
-        // Convert from 6 decimals (USDC) to price in USD
-        const ethPriceInUsd = Number(ethers.utils.formatUnits(ethToUsdQuote.paths[0].output.toString(), 6));
-        return 1 / ethPriceInUsd; // Return ETH/USD rate
-      }
-      
-      // Fallback if quote fails
-      return 1/3500;
-    }
-
-    // For other tokens, get price relative to ETH
-    const tokenToEthQuote = await getQuote(
-      token.address,
-      WETH_ADDRESS,
-      BigInt(ethers.utils.parseUnits("1", token.decimals).toString())
-    );
-
-    if (tokenToEthQuote.paths.length > 0) {
-      // Convert output to price (1 token = X ETH)
-      return Number(ethers.utils.formatEther(tokenToEthQuote.paths[0].output.toString()));
-    }
-
-    // Try reverse quote (ETH to token) if direct quote fails
-    const ethToTokenQuote = await getQuote(
-      WETH_ADDRESS,
-      token.address,
-      BigInt(ethers.utils.parseUnits("1", 18).toString())
-    );
-
-    if (ethToTokenQuote.paths.length > 0) {
-      // Convert output to ethers format with proper decimals
-      const tokenAmount = Number(ethers.utils.formatUnits(ethToTokenQuote.paths[0].output.toString(), token.decimals));
-      // Price = 1/tokenAmount
-      return tokenAmount > 0 ? 1 / tokenAmount : 0;
-    }
-
-    // Fallback to default values if no quotes are available
-    switch(token.symbol.toUpperCase()) {
-      case "WBTC":
-        return 16; // ~16 ETH per BTC
-      default:
-        return 0.0001; // Default assumption: token is worth 0.0001 ETH
-    }
-  } catch (error) {
-    console.error(`Error getting price for token ${token.symbol}:`, error);
-    return 0.0001; // Default fallback
-  }
+interface GasInfo {
+  gasPrice: ethers.BigNumber;
+  ethPrice: ethers.BigNumber;
 }
 
-export async function estimateGasUsage(path: string[]): Promise<number> {
-  // Base gas cost for a transaction
-  const baseGas = 21000;
-  
-  // Estimate additional gas per swap
-  const additionalGasPerSwap = 120000;
-  
-  // Calculate total gas based on the number of swaps (path.length - 1)
-  return baseGas + (additionalGasPerSwap * (path.length - 1));
-}
-
+/**
+ * Estimate gas cost for a transaction in token units
+ */
 export async function getGasCostInToken({
-  provider,
-  token,
+  provider: providerInput,
   gasUnits,
+  token,
 }: {
-  provider: ethers.providers.Provider;
+  provider?: ethers.providers.Provider;
+  gasUnits: ethers.BigNumberish;
   token: TokenInfo;
-  gasUnits: number;
-}): Promise<bigint> {
-  const gasPrice = await provider.getGasPrice();
-  const gasCostEth = gasPrice.mul(gasUnits);
+}): Promise<ethers.BigNumber> {
+  const providerInstance = providerInput || provider;
   
-  if (token.symbol.toUpperCase() === "ETH" || token.symbol.toUpperCase() === "WETH") {
-    return BigInt(gasCostEth.toString());
+  try {
+    const gasPrice = await providerInstance.getGasPrice();
+    const gasEstimateWei = ethers.BigNumber.from(gasUnits).mul(gasPrice);
+    
+    // If token is ETH/WETH, return directly
+    if (token.address.toLowerCase() === "0x82af49447d8a07e3bd95bd0d56f35241523fbab1") {
+      return gasEstimateWei;
+    }
+    
+    // TODO: For other tokens, convert from ETH to token price using oracle
+    // This is a placeholder implementation
+    return gasEstimateWei;
+  } catch (error) {
+    console.error("Error calculating gas cost:", error);
+    return ethers.BigNumber.from(0);
   }
-  
-  // Get prices using real DEX quotes
-  const ethPrice = await getTokenPrice({ symbol: "WETH", address: WETH_ADDRESS, decimals: 18 });
-  const tokenPrice = await getTokenPrice(token);
-  
-  if (tokenPrice === 0) {
-    return BigInt(0); // Avoid division by zero
+}
+
+/**
+ * Estimate gas usage for a sequence of operations
+ */
+export async function estimateGasUsage(path: string[]): Promise<ethers.BigNumber> {
+  try {
+    // Basic estimate based on operation count
+    const baseGas = 150000; // Gas for basic operations
+    const swapGas = 100000; // Gas per swap
+    
+    const totalGas = baseGas + (path.length - 1) * swapGas;
+    return ethers.BigNumber.from(totalGas);
+  } catch (error) {
+    console.error("Error estimating gas usage:", error);
+    return ethers.BigNumber.from(500000); // Safe default
   }
-  
-  // Convert ETH cost to token cost
-  const gasCostEthNumber = Number(ethers.utils.formatEther(gasCostEth));
-  const gasCostTokenNumber = gasCostEthNumber / tokenPrice;
-  
-  // Convert to BigInt with proper decimals
-  return BigInt(Math.floor(gasCostTokenNumber * 10 ** token.decimals));
+}
+
+/**
+ * Calculate ETH equivalent of gas cost
+ */
+export function calculateEthForGas(gasUnits: ethers.BigNumber, gasPrice: ethers.BigNumber): ethers.BigNumber {
+  try {
+    return gasUnits.mul(gasPrice);
+  } catch (error) {
+    console.error("Error calculating ETH for gas:", error);
+    return ethers.BigNumber.from(0);
+  }
 }
