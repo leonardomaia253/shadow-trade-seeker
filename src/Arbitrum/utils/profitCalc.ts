@@ -289,7 +289,8 @@ function calculateFrontrunProfit(
  */
 async function decodeDexPair(
   tx: ethers.providers.TransactionResponse, 
-  dexName: string
+  dexName: string,
+  provider: ethers.providers.Provider
 ): Promise<{
   pairAddress?: string;
   tokenIn?: string;
@@ -298,10 +299,9 @@ async function decodeDexPair(
   path?: string[];
 }> {
   try {
-    // Get provider from transaction
-    const currentProvider = tx.provider as ethers.providers.Provider;
-    if (!currentProvider) {
-      throw new Error("Transaction has no provider");
+    // Use the provider passed as parameter instead of trying to get it from tx
+    if (!provider) {
+      throw new Error("No provider provided");
     }
     
     // Tentar decodificar a função de swap
@@ -369,12 +369,12 @@ async function decodeDexPair(
             decoded.tokenIn,
             decoded.tokenOut,
             fee,
-            currentProvider
+            provider
           );
           
           // Verificar se o pool existe consultando o slot0
           const poolAbi = ["function slot0() external view returns (uint160, int24, uint16, uint16, uint16, uint8, bool)"];
-          const poolContract = new ethers.Contract(poolAddress, poolAbi, currentProvider);
+          const poolContract = new ethers.Contract(poolAddress, poolAbi, provider);
           
           // Se esta chamada não falhar, o pool existe
           await poolContract.slot0();
@@ -448,7 +448,8 @@ async function computeV3PoolAddress(
  * o impacto de preço e o potencial lucro do frontrunning
  */
 export async function getPriceImpactAndProfit(
-  tx: ethers.providers.TransactionResponse
+  tx: ethers.providers.TransactionResponse,
+  provider?: ethers.providers.Provider
 ): Promise<{
   dex: string;
   tokenIn: string;
@@ -477,18 +478,17 @@ export async function getPriceImpactAndProfit(
       'camelot'
     ];
     
-    // Get provider from transaction
-    const currentProvider = tx.provider as ethers.providers.Provider;
-    if (!currentProvider) {
-      throw new Error("Transaction has no provider");
-    }
+    // Get provider from parameter or use a default one
+    const currentProvider = provider || (
+      new ethers.providers.JsonRpcProvider("https://arb1.arbitrum.io/rpc")
+    );
     
     // Tentar decodificar a transação com cada DEX até encontrar um match
     let decodedData = null;
     let matchedDex = "uniswapv3"; // Default
     
     for (const dex of dexesToTry) {
-      decodedData = await decodeDexPair(tx, dex);
+      decodedData = await decodeDexPair(tx, dex, currentProvider);
       if (decodedData.tokenIn && decodedData.tokenOut && decodedData.amountIn) {
         matchedDex = dex;
         break;
