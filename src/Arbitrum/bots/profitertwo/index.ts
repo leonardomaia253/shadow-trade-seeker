@@ -4,15 +4,15 @@ import "dotenv/config";
 import { getProvider } from "../../config/provider";
 import { buildOrchestrationFromRoute } from "./profiter2builder";
 import { fetchTopTokensArbitrum } from "../../utils/tokensdefi";
-import { findBestMultiHopRoute } from "./profiter2scanner";
+import { findBestArbitrageRoute } from "./profiter2scanner";
 import { TokenInfo } from "../../utils/types";
 import { convertRouteToSwapSteps } from "../../utils/swapsteps";
 import { createClient } from "@supabase/supabase-js";
 import { executorAddress } from "@/Arbitrum/constants/addresses";
 import { buildUnwrapWETHCall } from "@/Arbitrum/shared/build/UnwrapWETH";
-import {getWETHBalance} from "../../shared/build/BalanceOf"
-import {BigNumber, Wallet} from "ethers";
-import {buildSwapToETHCall} from "../../shared/build/buildSwapResidual";
+import { getWETHBalance } from "../../shared/build/BalanceOf"
+import { BigNumber, Wallet } from "ethers";
+import { buildSwapToETHCall } from "../../shared/build/buildSwapResidual";
 import { simulateTokenProfit } from "../../simulation/simulate";
 import { sendBundle } from "@/Arbitrum/executor/sendBundle";
 
@@ -45,7 +45,7 @@ async function checkBotConfig() {
     const { data, error } = await supabase
       .from('bot_statistics')
       .select('is_running')
-      .eq('bot_type', 'arbitrage')
+      .eq('bot_type', 'profiter-two')
       .single();
       
     if (error) {
@@ -68,14 +68,10 @@ async function checkBotConfig() {
         level: isRunning ? 'info' : 'warn',
         message: isRunning ? 'Bot started via UI control' : 'Bot stopped via UI control',
         category: 'bot_state',
-        bot_type: 'arbitrage',
+        bot_type: 'profiter-two',
         source: 'system'
       });
     }
-    
-    // Check for configuration changes (like base token or profit threshold)
-    // This could be extended based on what configuration options are available in the UI
-    
   } catch (err: any) {
     console.error("❌ Failed to check bot configuration:", err.message);
   }
@@ -88,18 +84,17 @@ async function executeCycle() {
   }
   
   try {
-
-    console.log("🔍 Buscando tokens top 200 por volume na Arbitrum...");
+    console.log("🔍 Searching for tokens with high volume on Arbitrum...");
     const tokenList = await fetchTopTokensArbitrum(200);
 
     if (tokenList.length === 0) {
-      console.error("❌ Lista de tokens vazia, abortando.");
+      console.error("❌ Empty token list, aborting.");
       return;
     }
 
-    console.log(`✅ Tokens carregados: ${tokenList.length}. Rodando busca de arbitragem...`);
+    console.log(`✅ Loaded ${tokenList.length} tokens. Searching for arbitrage opportunities...`);
 
-    const bestRoute = await findBestMultiHopRoute({
+    const bestRoute = await findBestArbitrageRoute({
       provider,
       baseToken: currentBaseToken,
       tokenList,
@@ -109,56 +104,57 @@ async function executeCycle() {
       const profitInETH = parseFloat(ethers.utils.formatUnits(bestRoute.netProfit, currentBaseToken.decimals));
 
       if (profitInETH < currentProfitThreshold) {
-        console.log(`⚠️ Lucro ${profitInETH} ETH abaixo do mínimo. Ignorando...`);
+        console.log(`⚠️ Profit ${profitInETH} ETH below threshold. Skipping...`);
         return;
       }
 
-      console.log("✅ Melhor rota de arbitragem encontrada:");
+      console.log("✅ Found best arbitrage route:");
       console.log(
-        "Caminho:",
+        "Path:",
         bestRoute.route.map((swap) => swap.tokenIn.symbol).join(" → ") + " → " + bestRoute.route.at(-1)?.tokenOut.symbol
       );
       console.log("DEXs:", bestRoute.route.map((swap) => swap.dex).join(" → "));
-      console.log("Lucro líquido:", profitInETH.toFixed(6), currentBaseToken.symbol);
+      console.log("Net profit:", profitInETH.toFixed(6), currentBaseToken.symbol);
 
       const route = await convertRouteToSwapSteps(bestRoute.route);
       const {calls, flashLoanToken, flashLoanAmount} = await buildOrchestrationFromRoute({route, executor:executorAddress } );
       const profit = await simulateTokenProfit({provider,executorAddress,tokenAddress: flashLoanToken, calls: calls});
       
-      // Monta a chamada para trocar lucro residual para ETH
+      // Build call to swap remaining profit to ETH
       const SwapRemainingtx = await buildSwapToETHCall({ tokenIn: flashLoanToken, amountIn: profit, recipient:executorAddress });
       
-      // Obtém saldo WETH para unwrap
+      // Get WETH balance to unwrap
       const wethBalanceRaw = await getWETHBalance({ provider });
-      // Se o saldo for string decimal, usa parseEther, senão converte para BigNumber diretamente
       let wethBalance: BigNumber;
       try {
-      wethBalance = ethers.utils.parseEther(wethBalanceRaw);
+        wethBalance = ethers.utils.parseEther(wethBalanceRaw);
       } catch {
-      wethBalance = BigNumber.from(wethBalanceRaw);
+        wethBalance = BigNumber.from(wethBalanceRaw);
       }
       
       const unwrapCall = buildUnwrapWETHCall({ amount: wethBalance });
       
-      // Monta o bundle final
-      const Txs = [...(Array.isArray(calls) ? calls : [calls]),SwapRemainingtx,unwrapCall];
-
-     const bundleTxs = Txs.map((tx) => ({signer: signer,
-    transaction: {to: tx.to,data: tx.data,gasLimit: 500_000,}}));
-    await sendBundle(bundleTxs, provider);
+      // Build final bundle
+      const Txs = [...(Array.isArray(calls) ? calls : [calls]), SwapRemainingtx, unwrapCall];
+      const bundleTxs = Txs.map((tx) => ({
+        signer: signer,
+        transaction: {
+          to: tx.to,
+          data: tx.data,
+          gasLimit: 500_000,
+        },
+      }));
       
+      await sendBundle(bundleTxs, provider);
       
       try {
-      
-      
-
         await supabase.from("bot_logs").insert({
           level: "info",
-          message: `Arbitragem executada com sucesso`,
+          message: `Arbitrage executed successfully`,
           category: "transaction",
-          bot_type: "arbitrage",
+          bot_type: "profiter-two",
           source: "executor",
-          tx_hash: bundleTxs,
+          tx_hash: JSON.stringify(bundleTxs),
           metadata: {
             dexes: bestRoute.route.map((r) => r.dex),
             profit: profitInETH,
@@ -169,7 +165,7 @@ async function executeCycle() {
         const { data: stats } = await supabase
           .from('bot_statistics')
           .select('*')
-          .eq('bot_type', 'arbitrage')
+          .eq('bot_type', 'profiter-two')
           .single();
           
         if (stats) {
@@ -190,33 +186,33 @@ async function executeCycle() {
               transactions_count: newTxCount,
               updated_at: new Date().toISOString()
             })
-            .eq('bot_type', 'arbitrage');
+            .eq('bot_type', 'profiter-two');
         }
         
       } catch (err: any) {
-        console.error("❌ Erro na execução da arbitragem:", err.message);
+        console.error("❌ Error during arbitrage execution:", err.message);
 
         await supabase.from("bot_logs").insert({
           level: "error",
-          message: `Erro na arbitragem`,
+          message: `Arbitrage execution error`,
           category: "exception",
-          bot_type: "arbitrage",
+          bot_type: "profiter-two",
           source: "executor",
           metadata: { error: err.message },
         });
       }
     } else {
-      console.log("⚠️ Nenhuma arbitragem lucrativa encontrada.");
+      console.log("⚠️ No profitable arbitrage found.");
     }
   } catch (err: any) {
-    console.error("❌ Erro no ciclo de execução:", err.message);
+    console.error("❌ Error in execution cycle:", err.message);
     
     // Log any unexpected errors
     await supabase.from("bot_logs").insert({
       level: "error",
-      message: `Erro no ciclo de execução: ${err.message}`,
+      message: `Error in execution cycle: ${err.message}`,
       category: "exception",
-      bot_type: "arbitrage",
+      bot_type: "profiter-two",
       source: "system",
       metadata: { error: err.message, stack: err.stack },
     });
@@ -225,23 +221,23 @@ async function executeCycle() {
 
 // Main bot loop
 async function loop() {
-  console.log("🤖 Iniciando bot de arbitragem...");
+  console.log("🤖 Starting profiter-two bot...");
   
   // Initial configuration load
   try {
     const { data, error } = await supabase
       .from('bot_statistics')
       .select('is_running')
-      .eq('bot_type', 'arbitrage')
+      .eq('bot_type', 'profiter-two')
       .single();
       
     if (data) {
       isRunning = data.is_running || false;
-      console.log(`🤖 Estado inicial do bot: ${isRunning ? 'EXECUTANDO' : 'PARADO'}`);
+      console.log(`🤖 Initial bot state: ${isRunning ? 'RUNNING' : 'STOPPED'}`);
     } else {
       // Initialize bot_statistics if it doesn't exist
       await supabase.from('bot_statistics').upsert({
-        bot_type: 'arbitrage',
+        bot_type: 'profiter-two',
         is_running: false,
         total_profit: 0,
         success_rate: 0,
@@ -258,9 +254,9 @@ async function loop() {
   // Log bot startup
   await supabase.from("bot_logs").insert({
     level: "info",
-    message: `Bot iniciado com configuração: Profit min=${currentProfitThreshold} ETH, Base token=${currentBaseToken.symbol}`,
+    message: `Bot started with configuration: Profit min=${currentProfitThreshold} ETH, Base token=${currentBaseToken.symbol}`,
     category: "bot_state",
-    bot_type: "arbitrage",
+    bot_type: "profiter-two",
     source: "system",
     metadata: { 
       profitThreshold: currentProfitThreshold,
@@ -279,7 +275,7 @@ async function loop() {
         await executeCycle();
       }
     } catch (err) {
-      console.error("❌ Erro no loop principal:", err);
+      console.error("❌ Error in main loop:", err);
     }
     await sleep(1000); // Poll every second
   }

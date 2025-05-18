@@ -1,266 +1,183 @@
 
-import React, { useEffect, useState } from 'react';
-import { format } from 'date-fns';
-import { Info, AlertTriangle, Bug, CheckCircle, XCircle, Loader, ExternalLink } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { Activity, AlertCircle, Info, Check, ChevronDown } from "lucide-react";
 
-interface LogEntry {
+interface BotLogEntry {
   id: string;
   level: string;
   message: string;
   category: string;
-  bot_type?: string;
-  source?: string;
-  tx_hash?: string;
-  metadata?: any;
   timestamp: string;
+  source?: string;
+  bot_type?: string;
+  metadata?: any;
 }
 
-const LogIcon = ({ level }: { level: string }) => {
-  switch (level.toLowerCase()) {
-    case 'info':
-      return <Info className="h-4 w-4 text-neon-blue" />;
-    case 'warn':
-      return <AlertTriangle className="h-4 w-4 text-amber-500" />;
-    case 'error':
-      return <XCircle className="h-4 w-4 text-red-500" />;
-    case 'debug':
-      return <Bug className="h-4 w-4 text-neon-purple" />;
-    case 'success':
-      return <CheckCircle className="h-4 w-4 text-neon-green" />;
-    default:
-      return <Info className="h-4 w-4 text-gray-400" />;
-  }
-};
+interface BotLogsViewerProps {
+  botType?: string;
+}
 
-const getLevelColor = (level: string): string => {
-  switch (level.toLowerCase()) {
-    case 'info':
-      return 'bg-blue-900/30 text-neon-blue border-neon-blue/50';
-    case 'warn':
-      return 'bg-amber-900/30 text-amber-500 border-amber-500/50';
-    case 'error':
-      return 'bg-red-900/30 text-red-500 border-red-500/50';
-    case 'debug':
-      return 'bg-purple-900/30 text-neon-purple border-neon-purple/50';
-    case 'success':
-      return 'bg-green-900/30 text-neon-green border-neon-green/50';
-    default:
-      return 'bg-gray-900/30 text-gray-400 border-gray-500/50';
-  }
-};
-
-const BotLogsViewer = () => {
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [expandedLogIds, setExpandedLogIds] = useState<Set<string>>(new Set());
-  const [activeTab, setActiveTab] = useState<string>('all');
-  const [loading, setLoading] = useState<boolean>(true);
-  const [expandedMetadata, setExpandedMetadata] = useState<{ [key: string]: boolean }>({});
-
-  const toggleLogExpansion = (logId: string) => {
-    const newExpandedLogs = new Set(expandedLogIds);
-    if (newExpandedLogs.has(logId)) {
-      newExpandedLogs.delete(logId);
-    } else {
-      newExpandedLogs.add(logId);
-    }
-    setExpandedLogIds(newExpandedLogs);
-  };
-
-  const toggleMetadataExpansion = (logId: string) => {
-    setExpandedMetadata(prev => ({
-      ...prev,
-      [logId]: !prev[logId]
-    }));
-  };
-
-  const formatJSON = (data: any): string => {
-    if (!data) return 'No metadata';
-    try {
-      return JSON.stringify(data, null, 2);
-    } catch (e) {
-      return 'Invalid metadata format';
-    }
-  };
-
-  const openTransactionExplorer = (txHash: string) => {
-    window.open(`https://arbiscan.io/tx/${txHash}`, '_blank');
-  };
-
+const BotLogsViewer = ({ botType = 'arbitrage' }: BotLogsViewerProps) => {
+  const [logs, setLogs] = useState<BotLogEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [logLevel, setLogLevel] = useState<string>("all");
+  
   useEffect(() => {
+    // Function to fetch logs
     const fetchLogs = async () => {
-      setLoading(true);
+      setIsLoading(true);
       try {
-        const query = supabase
+        let query = supabase
           .from('bot_logs')
           .select('*')
-          .eq('bot_type', 'arbitrage')
+          .eq('bot_type', botType)
           .order('timestamp', { ascending: false })
-          .limit(50);
-
-        if (activeTab !== 'all') {
-          query.eq('level', activeTab);
+          .limit(100);
+          
+        if (logLevel !== 'all') {
+          query = query.eq('level', logLevel);
         }
-
+        
         const { data, error } = await query;
         
         if (error) throw error;
         
-        if (data) {
-          setLogs(data);
-        }
-      } catch (error) {
-        console.error('Error fetching logs:', error);
+        setLogs(data || []);
+      } catch (err) {
+        console.error("Failed to fetch logs:", err);
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
     };
-
+    
+    // Initial fetch
     fetchLogs();
     
-    // Set up real-time listener for new log entries
+    // Subscribe to real-time updates
     const channel = supabase
-      .channel('arbitrage-logs-updates')
+      .channel(`${botType}-logs-updates`)
       .on('postgres_changes', 
-          { event: 'INSERT', schema: 'public', table: 'bot_logs', filter: 'bot_type=eq.arbitrage' },
+          { event: 'INSERT', schema: 'public', table: 'bot_logs', filter: `bot_type=eq.${botType}` },
           (payload) => {
-            // Add new log to the top of the list
-            setLogs(prev => [payload.new as LogEntry, ...prev.slice(0, 49)]);
+            const newLog = payload.new as BotLogEntry;
+            
+            // Add the new log only if it matches our current log level filter
+            if (logLevel === 'all' || newLog.level === logLevel) {
+              setLogs(prevLogs => [newLog, ...prevLogs.slice(0, 99)]);
+            }
           })
       .subscribe();
       
+    // Clean up subscription
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeTab]);
-
-  const filteredLogs = logs;
-
+  }, [botType, logLevel]);
+  
+  // Function to get color and icon based on log level
+  const getLevelStyles = (level: string) => {
+    switch (level.toLowerCase()) {
+      case 'error':
+        return { color: 'text-red-500', icon: <AlertCircle className="h-4 w-4 mr-1" /> };
+      case 'warn':
+        return { color: 'text-yellow-500', icon: <AlertCircle className="h-4 w-4 mr-1" /> };
+      case 'info':
+        return { color: 'text-neon-blue', icon: <Info className="h-4 w-4 mr-1" /> };
+      case 'success':
+        return { color: 'text-neon-green', icon: <Check className="h-4 w-4 mr-1" /> };
+      default:
+        return { color: 'text-gray-400', icon: <Activity className="h-4 w-4 mr-1" /> };
+    }
+  };
+  
+  // Format timestamp to localized time
+  const formatTimestamp = (timestamp: string) => {
+    try {
+      const date = new Date(timestamp);
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) +
+             ' ' + date.toLocaleDateString();
+    } catch (e) {
+      return timestamp;
+    }
+  };
+  
   return (
     <Card className="bg-crypto-card border-crypto-border shadow-glow-sm">
-      <CardHeader className="pb-2">
-        <div className="flex justify-between items-center">
-          <CardTitle className="text-xl text-neon-blue flex items-center">
-            <Bug className="mr-2" /> Bot Logs
-          </CardTitle>
-          <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="bg-crypto-darker">
-              <TabsTrigger value="all">All</TabsTrigger>
-              <TabsTrigger value="info" className="text-neon-blue">Info</TabsTrigger>
-              <TabsTrigger value="warn" className="text-amber-500">Warn</TabsTrigger>
-              <TabsTrigger value="error" className="text-red-500">Error</TabsTrigger>
-              <TabsTrigger value="debug" className="text-neon-purple">Debug</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
+      <CardHeader className="pb-2 flex flex-row items-center justify-between">
+        <CardTitle className="text-xl text-neon-blue flex items-center">
+          <Activity className="mr-2" /> Bot Logs
+        </CardTitle>
+        <Select
+          value={logLevel}
+          onValueChange={setLogLevel}
+        >
+          <SelectTrigger className="w-32 bg-crypto-darker">
+            <SelectValue placeholder="Log Level" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Levels</SelectItem>
+            <SelectItem value="info">Info</SelectItem>
+            <SelectItem value="warn">Warnings</SelectItem>
+            <SelectItem value="error">Errors</SelectItem>
+            <SelectItem value="success">Success</SelectItem>
+          </SelectContent>
+        </Select>
       </CardHeader>
       <CardContent>
-        {loading ? (
-          <div className="flex justify-center items-center p-8">
-            <Loader className="h-8 w-8 text-neon-blue animate-spin" />
-          </div>
-        ) : filteredLogs.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            No logs available. Start the bot to begin logging activity.
-          </div>
-        ) : (
-          <ScrollArea className="h-[400px] pr-4">
-            <div className="space-y-2">
-              {filteredLogs.map((log) => (
-                <div 
-                  key={log.id} 
-                  className={`border rounded-md overflow-hidden ${getLevelColor(log.level)}`}
-                >
-                  <div 
-                    className="p-3 cursor-pointer flex justify-between items-start"
-                    onClick={() => toggleLogExpansion(log.id)}
-                  >
-                    <div className="flex items-start gap-3 flex-1">
-                      <div className="mt-1">
-                        <LogIcon level={log.level} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Badge variant="outline" className="font-mono text-xs">
-                            {format(new Date(log.timestamp), 'yyyy-MM-dd HH:mm:ss')}
-                          </Badge>
-                          <Badge className={`uppercase text-xs ${
-                            log.level === 'error' ? 'bg-red-900 text-red-200' :
-                            log.level === 'warn' ? 'bg-amber-900 text-amber-200' :
-                            log.level === 'info' ? 'bg-blue-900 text-blue-200' :
-                            log.level === 'debug' ? 'bg-purple-900 text-purple-200' :
-                            'bg-gray-800 text-gray-200'
-                          }`}>
-                            {log.level}
-                          </Badge>
-                          <Badge variant="outline" className="text-xs">
-                            {log.category}
-                          </Badge>
-                          {log.source && (
-                            <Badge variant="outline" className="text-xs">
-                              {log.source}
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-sm whitespace-normal break-words">{log.message}</p>
-                      </div>
-                    </div>
-                    <div className="text-xs opacity-70">
-                      {expandedLogIds.has(log.id) ? '−' : '+'}
-                    </div>
-                  </div>
-                  
-                  {expandedLogIds.has(log.id) && (
-                    <div className="px-3 pb-3 pt-1 border-t border-dashed border-gray-700">
-                      {log.tx_hash && (
-                        <div className="mb-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openTransactionExplorer(log.tx_hash!);
-                            }}
-                            className="text-xs flex items-center gap-1"
-                          >
-                            View Transaction <ExternalLink className="h-3 w-3 ml-1" />
-                          </Button>
-                          <div className="text-xs mt-1 opacity-70 font-mono overflow-hidden text-ellipsis">
-                            {log.tx_hash}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {log.metadata && (
-                        <div className="mt-2">
-                          <div 
-                            className="text-xs font-semibold mb-1 cursor-pointer flex items-center"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleMetadataExpansion(log.id);
-                            }}
-                          >
-                            Metadata {expandedMetadata[log.id] ? '−' : '+'}
-                          </div>
-                          {expandedMetadata[log.id] && (
-                            <pre className="text-xs bg-black/30 p-2 rounded overflow-x-auto font-mono">
-                              {formatJSON(log.metadata)}
-                            </pre>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
+        <div className="h-80 overflow-auto border border-crypto-border rounded-md bg-crypto-darker p-2">
+          {isLoading ? (
+            <div className="flex justify-center items-center h-full">
+              <span className="text-neon-blue animate-pulse">Loading logs...</span>
             </div>
-          </ScrollArea>
-        )}
+          ) : logs.length === 0 ? (
+            <div className="flex justify-center items-center h-full text-gray-400">
+              <span>No logs found</span>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {logs.map((log) => {
+                const { color, icon } = getLevelStyles(log.level);
+                return (
+                  <div 
+                    key={log.id} 
+                    className="p-2 border-b border-crypto-border last:border-b-0 hover:bg-black/20"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className={`flex items-center font-bold ${color}`}>
+                        {icon}
+                        <span>{log.level.toUpperCase()}</span>
+                      </div>
+                      <span className="text-xs text-gray-400">{formatTimestamp(log.timestamp)}</span>
+                    </div>
+                    <div className="mt-1 text-sm">{log.message}</div>
+                    <div className="mt-1 flex items-center text-xs text-gray-400">
+                      <span className="bg-crypto-darker px-2 py-0.5 rounded">{log.category}</span>
+                      {log.source && (
+                        <span className="ml-2 bg-crypto-darker px-2 py-0.5 rounded">
+                          Source: {log.source}
+                        </span>
+                      )}
+                    </div>
+                    {log.metadata && (
+                      <details className="mt-2 text-xs">
+                        <summary className="cursor-pointer flex items-center text-gray-400 hover:text-gray-300">
+                          <ChevronDown className="h-3 w-3 mr-1" />
+                          Details
+                        </summary>
+                        <div className="p-2 mt-1 bg-crypto-darker rounded overflow-x-auto">
+                          <pre className="text-xs text-gray-300">{JSON.stringify(log.metadata, null, 2)}</pre>
+                        </div>
+                      </details>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

@@ -1,41 +1,20 @@
 
 project_id = "vlttatulvodsubdqyzrc"
 
-[api]
-enabled = true
-port = 54321
-schemas = ["public", "storage", "graphql_public"]
-
-[db]
-port = 54322
-shadow_port = 54320
-major_version = 15
-
-[studio]
-enabled = true
-port = 54323
-api_url = "http://localhost"
-
-[inbucket]
-enabled = true
-port = 54324
-smtp_port = 54325
-pop3_port = 54326
-
-[storage]
-enabled = true
-port = 54327
-
-[realtime]
-enabled = true
-
-[auth]
-enabled = true
-port = 54328
-
-[analytics]
-enabled = true
-port = 54329
-
 [functions.arbitrage-bot-control]
+verify_jwt = false
+
+[functions.profiter-one-bot-control]
+verify_jwt = false
+
+[functions.profiter-two-bot-control]
+verify_jwt = false
+
+[functions.liquidation-bot-control]
+verify_jwt = false
+
+[functions.frontrun-bot-control]
+verify_jwt = false
+
+[functions.sandwich-bot-control]
 verify_jwt = false
