@@ -5,11 +5,7 @@ export function encodePayMiner(
   contractAddress: string,
   tokenAddress: string,
   amount: bigint
-): {
-  to: string;
-  data: string;
-  value: bigint;
-} {
+): ethers.providers.TransactionRequest {
   const abi = [
     "function payMiner(address token, uint256 amount) external payable",
   ];
@@ -22,8 +18,11 @@ export function encodePayMiner(
     : 0n;
 
   return {
-    to: "0xebc996030ad65e113ba2f03e55de080044b83dca",
+    to: contractAddress, // em vez de hardcoded
     data,
     value,
+    gasLimit: 200_000n, // use valor maior do que 21000 se não for uma tx simples
+    maxFeePerGas: ethers.utils.parseUnits("100", "gwei"),
+    maxPriorityFeePerGas: ethers.utils.parseUnits("2", "gwei"),
   };
 }

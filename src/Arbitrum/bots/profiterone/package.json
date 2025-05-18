@@ -1,0 +1,24 @@
+
+{
+  "name": "profiter-one",
+  "version": "1.0.0",
+  "description": "Crypto arbitrage bot with web interface integration",
+  "main": "index.ts",
+  "scripts": {
+    "start": "ts-node index.ts",
+    "pm2": "pm2 start ecosystem.config.ts",
+    "pm2:stop": "pm2 stop arbitrage-bot",
+    "pm2:logs": "pm2 logs arbitrage-bot",
+    "pm2:status": "pm2 status arbitrage-bot"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.4",
+    "dotenv": "^16.4.4",
+    "ethers": "^5.7.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}

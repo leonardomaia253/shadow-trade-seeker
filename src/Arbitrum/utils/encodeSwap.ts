@@ -1,18 +1,6 @@
-
 import { DexSwap, BuiltSwapCall } from "./types";
-import { ethers } from "ethers";
-import {
-  uniswapv2,
-  uniswapv3Router,
-  uniswapv4Router,
-  sushiswapv2Router,
-  sushiswapv3Router,
-  pancakeswapv3Router,
-  curveRouter,
-  ramsesv2Router,
-  maverickv2Router,
-  camelotRouter,
-} from "../constants/addresses";
+import { ethers,BigNumber } from "ethers";
+import {uniswapv2,uniswapv3Router,uniswapv4Router,sushiswapv2Router,sushiswapv3Router,pancakeswapv3Router,curveRouter,ramsesv2Router,maverickv2Router,camelotRouter,} from "../constants/addresses";
 
 /// Uniswap V2 / Sushiswap V2 / Camelot (mesma ABI)
 const uniV2LikeAbi = [
@@ -23,23 +11,23 @@ export async function buildUniswapV2Swap(swap: DexSwap): Promise<BuiltSwapCall> 
   try {
     const router = new ethers.Contract(uniswapv2, uniV2LikeAbi);
 
-    // Preparando os dados da transação
+
     const callData = router.interface.encodeFunctionData("swapExactTokensForTokens", [
       swap.amountIn,
-      0, // amountOutMin (definido como 0 — garantir simulação antes)
+      swap.amountOutMin,
       [swap.tokenIn, swap.tokenOut],
       swap.recipient,
       Math.floor(Date.now() / 1000) + 60,
     ]);
 
     return {
-      target: router.address, // Endereço do router
-      data: callData,         // Dados da transação para envio
-      approveToken: swap.tokenIn, // Token que precisa ser aprovado antes de chamar o swap
+      to: router.address,
+      data: callData,
+      value: BigNumber.from(0), 
     };
   } catch (error) {
     console.error("Erro ao gerar calldata UniswapV2:", error);
-    return null;
+    throw error;
   }
 }
 
@@ -47,23 +35,22 @@ export async function buildSushiswapV2Swap(swap: DexSwap): Promise<BuiltSwapCall
   try {
     const router = new ethers.Contract(sushiswapv2Router, uniV2LikeAbi);
 
-    // Preparando os dados da transação
     const callData = router.interface.encodeFunctionData("swapExactTokensForTokens", [
       swap.amountIn,
-      0, // amountOutMin (definido como 0 — garantir simulação antes)
+      swap.amountOutMin,
       [swap.tokenIn, swap.tokenOut],
       swap.recipient,
       Math.floor(Date.now() / 1000) + 60,
     ]);
 
     return {
-      target: router.address, // Endereço do router
-      data: callData,         // Dados da transação para envio
-      approveToken: swap.tokenIn, // Token que precisa ser aprovado antes de chamar o swap
+      to: router.address,
+      data: callData,
+      value: BigNumber.from(0),
     };
   } catch (error) {
     console.error("Erro ao gerar calldata SushiswapV2:", error);
-    return null;
+    throw error;
   }
 }
 
@@ -75,22 +62,23 @@ export async function buildCamelotSwap(swap: DexSwap): Promise<BuiltSwapCall> {
     // Preparando os dados da transação
     const callData = router.interface.encodeFunctionData("swapExactTokensForTokens", [
       swap.amountIn,
-      0, // amountOutMin (definido como 0 — garantir simulação antes)
+      swap.amountOutMin,
       [swap.tokenIn, swap.tokenOut],
       swap.recipient,
       Math.floor(Date.now() / 1000) + 60,
     ]);
 
     return {
-      target: router.address, // Endereço do router
-      data: callData,         // Dados da transação para envio
-      approveToken: swap.tokenIn, // Token que precisa ser aprovado antes de chamar o swap
+      to: router.address,
+      data: callData,
+      value: BigNumber.from(0), 
     };
   } catch (error) {
     console.error("Erro ao gerar calldata Camelot:", error);
     return null;
   }
 }
+
 
 
 /// Uniswap V3 / Sushiswap V3 / PancakeSwap V3 / Ramses V2
@@ -107,16 +95,17 @@ export async function buildUniswapV3Swap(swap: DexSwap): Promise<BuiltSwapCall> 
       {
         tokenIn: swap.tokenIn,
         tokenOut: swap.tokenOut,
+        fee: 3000,
+        recipient: swap.recipient,
         amountIn: swap.amountIn,
-        amountOutMinimum: 0, // amountOutMin (definido como 0 — garantir simulação antes)
-        sqrtPriceLimitX96: 0, // Ajuste conforme necessário
-      },
+        amountOutMin:swap.amountOutMin,
+        sqrtPriceLimitX96: 0,}
     ]);
 
     return {
-      target: router.address, // Endereço do router
-      data: callData,         // Dados da transação para envio
-      approveToken: swap.tokenIn, // Token que precisa ser aprovado antes de chamar o swap
+      to: router.address,
+      data: callData,
+      value: BigNumber.from(0),
     };
   } catch (error) {
     console.error("Erro ao gerar calldata UniswapV3:", error);
@@ -131,18 +120,20 @@ export async function buildSushiswapV3Swap(swap: DexSwap): Promise<BuiltSwapCall
     // Preparando os dados da transação
     const callData = router.interface.encodeFunctionData("exactInputSingle", [
       {
-        tokenIn: swap.tokenIn,
+         tokenIn: swap.tokenIn,
         tokenOut: swap.tokenOut,
+        fee: 3000,
+        recipient: swap.recipient,
         amountIn: swap.amountIn,
-        amountOutMinimum: 0, // amountOutMin (definido como 0 — garantir simulação antes)
-        sqrtPriceLimitX96: 0, // Ajuste conforme necessário
+        amountOutMin:swap.amountOutMin,
+        sqrtPriceLimitX96: 0,
       },
     ]);
 
     return {
-      target: router.address, // Endereço do router
-      data: callData,         // Dados da transação para envio
-      approveToken: swap.tokenIn, // Token que precisa ser aprovado antes de chamar o swap
+      to: router.address,
+      data: callData,
+      value: BigNumber.from(0),
     };
   } catch (error) {
     console.error("Erro ao gerar calldata SushiswapV3:", error);
@@ -159,16 +150,18 @@ export async function buildPancakeswapV3Swap(swap: DexSwap): Promise<BuiltSwapCa
       {
         tokenIn: swap.tokenIn,
         tokenOut: swap.tokenOut,
+        fee: 3000,
+        recipient: swap.recipient,
         amountIn: swap.amountIn,
-        amountOutMinimum: 0, // amountOutMin (definido como 0 — garantir simulação antes)
-        sqrtPriceLimitX96: 0, // Ajuste conforme necessário
+        amountOutMin:swap.amountOutMin,
+        sqrtPriceLimitX96: 0,
       },
     ]);
 
     return {
-      target: router.address, // Endereço do router
-      data: callData,         // Dados da transação para envio
-      approveToken: swap.tokenIn, // Token que precisa ser aprovado antes de chamar o swap
+      to: router.address,
+      data: callData,
+      value: BigNumber.from(0),
     };
   } catch (error) {
     console.error("Erro ao gerar calldata PancakeswapV3:", error);
@@ -185,16 +178,18 @@ export async function buildRamsesV2Swap(swap: DexSwap): Promise<BuiltSwapCall> {
       {
         tokenIn: swap.tokenIn,
         tokenOut: swap.tokenOut,
+        fee: 3000,
+        recipient: swap.recipient,
         amountIn: swap.amountIn,
-        amountOutMinimum: 0, // amountOutMin (definido como 0 — garantir simulação antes)
-        sqrtPriceLimitX96: 0, // Ajuste conforme necessário
+        amountOutMin:swap.amountOutMin,
+        sqrtPriceLimitX96: 0,
       },
     ]);
 
     return {
-      target: router.address, // Endereço do router
-      data: callData,         // Dados da transação para envio
-      approveToken: swap.tokenIn, // Token que precisa ser aprovado antes de chamar o swap
+      to: router.address,
+      data: callData,
+      value: BigNumber.from(0),
     };
   } catch (error) {
     console.error("Erro ao gerar calldata RamsesV2:", error);
@@ -202,51 +197,52 @@ export async function buildRamsesV2Swap(swap: DexSwap): Promise<BuiltSwapCall> {
   }
 }
 
-/// Uniswap V4 (exemplo com interface simulada, placeholder até lib oficial)
-export async function buildUniswapV4Swap({
-  signer,
-  fromToken,
-  toToken,
-  amountIn,
-  recipient,
-  callbackRecipient = ethers.constants.AddressZero,
-  sqrtPriceLimitX96 = 0,
-}: {
-  signer: ethers.Signer;
-  fromToken: string;
-  toToken: string;
-  amountIn: string; // em wei
-  recipient: string;
-  callbackRecipient?: string;
-  sqrtPriceLimitX96?: number;
-}): Promise<BuiltSwapCall> {
-  const iface = new ethers.utils.Interface([
-    "function swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160 sqrtPriceLimitX96, bytes hookData) external returns (int256 amount0, int256 amount1)"
-  ]);
 
-  // ordenação lexicográfica dos tokens define token0 e token1
-  const [token0, token1] = [fromToken.toLowerCase(), toToken.toLowerCase()].sort();
 
-  const zeroForOne = fromToken.toLowerCase() === token0;
+export async function buildUniswapV4Swap(swap: DexSwap): Promise<BuiltSwapCall> {
+  try {
+    const {
+      tokenIn: fromToken,
+      tokenOut: toToken,
+      amountIn,
+      amountOutMin,
+      recipient,
+      callbackRecipient = ethers.constants.AddressZero,
+      sqrtPriceLimitX96 = 0
+    } = swap;
 
-  // hookData codifica os tokens e callbackRecipient — pode ser vazio ("0x") se não for usado
-  const hookData = ethers.utils.defaultAbiCoder.encode(
-    ["address", "address", "address"],
-    [fromToken, toToken, callbackRecipient]
-  );
+    const iface = new ethers.utils.Interface([
+      "function swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160 sqrtPriceLimitX96, bytes hookData) external returns (int256 amount0, int256 amount1)"
+    ]);
+    const router = new ethers.Contract(uniswapv4Router, iface);
 
-  const callData = iface.encodeFunctionData("swap", [
-    recipient,
-    zeroForOne,
-    ethers.BigNumber.from(amountIn).mul(-1), // valor negativo = exactIn
-    sqrtPriceLimitX96,
-    hookData,
-  ]);
+    
 
-  return {
-    target: uniswapv4Router,
-    data: callData,
-  };
+    const [token0, token1] = [fromToken.toLowerCase(), toToken.toLowerCase()].sort();
+    const zeroForOne = fromToken.toLowerCase() === token0;
+
+    const hookData = ethers.utils.defaultAbiCoder.encode(
+      ["address", "address", "address"],
+      [fromToken, toToken, callbackRecipient]
+    );
+
+    const callData = iface.encodeFunctionData("swap", [
+      recipient,
+      zeroForOne,
+      BigNumber.from(amountIn).mul(-1), // exactIn
+      sqrtPriceLimitX96,
+      hookData,
+    ]);
+
+    return {
+      to: router.address,
+      data: callData,
+      value: BigNumber.from(0),
+    };
+  } catch (error) {
+    console.error("Erro ao gerar calldata Uniswap V4:", error);
+    throw error;
+  }
 }
 
 const maverickV2LikeAbi = [
@@ -268,9 +264,9 @@ export async function buildMaverickV2Swap(swap: DexSwap): Promise<BuiltSwapCall>
     ]);
 
     return {
-      target: router.address, // Endereço do router
-      data: callData,         // Dados da transação para envio
-      approveToken: swap.tokenIn, // Token que precisa ser aprovado antes de chamar o swap
+      to: router.address,
+      data: callData,
+      value: BigNumber.from(0),
     };
   } catch (error) {
     console.error("Erro ao gerar calldata MaverickV2:", error);
@@ -298,9 +294,9 @@ export async function buildCurveSwap(swap: DexSwap): Promise<BuiltSwapCall> {
     ]);
 
     return {
-      target: pool.address, // Endereço do router
-      data: callData,       // Dados da transação para envio
-      approveToken: swap.tokenIn, // Token que precisa ser aprovado antes de chamar o swap
+      to: pool.address,
+      data: callData,
+      value: BigNumber.from(0),
     };
   } catch (error) {
     console.error("Erro ao gerar calldata Curve:", error);

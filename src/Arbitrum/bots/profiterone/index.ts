@@ -2,9 +2,9 @@
 import { ethers } from "ethers";
 import "dotenv/config";
 import { getProvider } from "../../config/provider";
-import { buildOrchestrationFromRoute } from "./arbitragebuilder";
+import { buildOrchestrationFromRoute } from "./profiterbuilder";
 import { fetchTopTokensArbitrum } from "../../utils/tokensdefi";
-import { findBestArbitrageRoute } from "./arbitrageScanner";
+import { findBestArbitrageRoute } from "./profiter1scanner";
 import { TokenInfo } from "../../utils/types";
 import { convertRouteToSwapSteps } from "../../utils/swapsteps";
 import { createClient } from "@supabase/supabase-js";

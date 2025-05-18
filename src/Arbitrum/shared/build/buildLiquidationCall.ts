@@ -1,76 +1,87 @@
-
 import { ethers } from "ethers";
-import { CallData } from "../../utils/types";
-import { enhancedLogger } from "../../utils/enhancedLogger";
 
-export async function buildLiquidationCall({
-  fromToken,
-  toToken,
-  amount,
-  slippage = 0.01,
-  protocol = "aave"
+export function getLiquidationCallData({
+  protocol,
+  params,
 }: {
-  fromToken: string;
-  toToken: string;
-  amount: ethers.BigNumber;
-  slippage?: number;
-  dex?: string;
-  protocol?: string;
-}): Promise<CallData> {
-  try {
-    // Normalmente faríamos uma consulta para estimar o valor de saída
-    // Para simplificar, vamos assumir que o valor de saída é igual (1:1)
-    // Em uma implementação real, consultaríamos a API do DEX
-    
-    // Calcular valor mínimo aceitável considerando slippage
-    const amountOutMin = amount.mul(Math.floor((1 - slippage) * 10000)).div(10000);
-    
-    // Use protocol-specific adapters or a default implementation
-    let target = "";
-    let callData = "";
-    
-    switch (protocol.toLowerCase()) {
-      case "aave":
-        target = "0x794a61358D6845594F94dc1DB02A252b5b4814aD";
-        // Basic liquidation call data (simplified)
-        callData = "0x00000000"; 
-        break;
-      case "compound":
-        target = "0xbF0Bdd5C73813498D99b9F32BB4C0E84934F0885";
-        callData = "0x00000000";
-        break;
-      case "morpho":
-        target = "0x33333333333333333333333333333333";
-        callData = "0x00000000";
-        break;
-      case "spark":
-        target = "0x55555555555555555555555555555555";
-        callData = "0x00000000";
-        break;
-      case "venus":
-        target = "0x77777777777777777777777777777777";
-        callData = "0x00000000";
-        break;
-      default:
-        target = "0x794a61358D6845594F94dc1DB02A252b5b4814aD"; // Default to AAVE
-        callData = "0x00000000";
+  protocol: string;
+  params: any; // os parâmetros necessários para o protocolo
+}): string {
+  switch (protocol.toLowerCase()) {
+    case "aave": {
+      // liquidationCall(address collateralAsset, address debtAsset, address user, uint256 debtToCover, bool receiveAToken)
+      const abi = ["function liquidationCall(address,address,address,uint256,bool)"];
+      const iface = new ethers.utils.Interface(abi);
+      return iface.encodeFunctionData("liquidationCall", [
+        params.collateralAsset,
+        params.debtAsset,
+        params.user,
+        params.debtToCover,
+        params.receiveAToken ?? false,
+      ]);
     }
-    
-    return {
-      target,
-      to: target,
-      callData,
-      data: callData,
-      dex: "uniswapv3",
-      requiresApproval: true,
-      approvalToken: fromToken,
-      approvalAmount: amount
-    };
-    
-  } catch (err) {
-    enhancedLogger.error(`Error building liquidation transaction: ${err instanceof Error ? err.message : String(err)}`, {
-      data: err
-    });
-    throw err;
+    case "compound": {
+      // liquidateBorrow(address borrower, uint256 repayAmount, address cTokenCollateral)
+      const abi = ["function liquidateBorrow(address,uint256,address)"];
+      const iface = new ethers.utils.Interface(abi);
+      return iface.encodeFunctionData("liquidateBorrow", [
+        params.borrower,
+        params.repayAmount,
+        params.cTokenCollateral,
+      ]);
+    }
+    case "morpho": {
+      // morpho has different versions, vamos supor o método de liquidate no contrato principal
+      const abi = ["function liquidate(address borrower, address cTokenCollateral, uint256 repayAmount)"];
+      const iface = new ethers.utils.Interface(abi);
+      return iface.encodeFunctionData("liquidate", [
+        params.borrower,
+        params.cTokenCollateral,
+        params.repayAmount,
+      ]);
+    }
+    case "spark": {
+      // Exemplo genérico, ajustar conforme documentação real do Spark
+      const abi = ["function liquidate(address borrower, address collateral, uint256 repayAmount)"];
+      const iface = new ethers.utils.Interface(abi);
+      return iface.encodeFunctionData("liquidate", [
+        params.borrower,
+        params.collateral,
+        params.repayAmount,
+      ]);
+    }
+    case "venus": {
+      // liquidateBorrow(address borrower, uint256 repayAmount, address cTokenCollateral)
+      const abi = ["function liquidateBorrow(address,uint256,address)"];
+      const iface = new ethers.utils.Interface(abi);
+      return iface.encodeFunctionData("liquidateBorrow", [
+        params.borrower,
+        params.repayAmount,
+        params.cTokenCollateral,
+      ]);
+    }
+    case "abracadabra": {
+      // Abracadabra tem vários mercados, liquidate função pode variar, aqui um exemplo genérico:
+      const abi = ["function liquidate(address user, uint256 repayAmount, address collateral)"];
+      const iface = new ethers.utils.Interface(abi);
+      return iface.encodeFunctionData("liquidate", [
+        params.user,
+        params.repayAmount,
+        params.collateral,
+      ]);
+    }
+    case "radiant": {
+      // Radiant provavelmente usa algo semelhante ao Aave, aqui um exemplo genérico
+      const abi = ["function liquidate(address collateralAsset, address debtAsset, address user, uint256 debtToCover)"];
+      const iface = new ethers.utils.Interface(abi);
+      return iface.encodeFunctionData("liquidate", [
+        params.collateralAsset,
+        params.debtAsset,
+        params.user,
+        params.debtToCover,
+      ]);
+    }
+    default:
+      throw new Error(`Protocolo ${protocol} não suportado para liquidacao`);
   }
 }

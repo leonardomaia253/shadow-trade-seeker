@@ -1,6 +1,16 @@
-
 import { ethers } from "ethers";
 import { BigNumberish } from "ethers";
+import { BigNumber } from "ethers";
+import { Signer } from "ethers";; // ou ajuste conforme a estrutura do seu projeto
+
+export type BuildOrchestrationParams = {
+  route?: SwapStep[];              // Rota principal de swaps
+  executor: string;               // Endereço do contrato executor
+  useAltToken?: boolean;           // Se usará token alternativo (ex: WETH)
+  altToken?: string;               // Token alternativo a ser usado (ex: WETH)
+  preSwapDex?: string;            // DEX usado para altToken → tokenIn (se usar altToken)
+  postSwapDex?: string;           // DEX usado para tokenOut → altToken (se usar altToken)
+};
 
 // Define types used throughout the application
 export type DexType = 
@@ -15,6 +25,19 @@ export type DexType =
   | "curve"
   | "camelot";
 
+  export type ProtocolType = 
+  | "aave" 
+  | "spark" 
+  | "radiant"
+  | "abracadabra"
+  | "venus"
+  | "compound"
+  | "morpho"
+  | "llamalend"
+  | "creamfinance"
+  | "ironbank";
+
+
 // Token information
 export interface TokenInfo {
   address: string;
@@ -26,15 +49,14 @@ export interface TokenInfo {
 
 // Call data for contract interactions
 export interface CallData {
-  target: string;
   to: string;          // endereço do contrato a ser chamado
   data: string;        // calldata da função
-  callData: string;
-  dex: DexType;
+  dex?: DexType;
+  amountOutMin?: BigNumber;
   value?: ethers.BigNumberish;
-  requiresApproval: boolean;
-  approvalToken: string;
-  approvalAmount: ethers.BigNumberish;
+  requiresApproval?: boolean;
+  approvalToken?: string;
+  approvalAmount?: ethers.BigNumberish;
 }
 
 // Simulation result type
@@ -104,24 +126,26 @@ export interface BuiltRoute {
 }
 
 // DexSwap information
-export interface DexSwap {
-  dex: DexType;
+export type DexSwap = {
   tokenIn: string;
   tokenOut: string;
-  amountIn: ethers.BigNumberish;
-  amountOutMin?: ethers.BigNumberish;
-  routerAddress: string;
-  path?: string[];
-  recipient: string; // Added missing property
-}
+  amountIn: BigNumber;
+  amountOutMin?: BigNumber;
+  slippage?: number;
+  callbackRecipient?: string;
+  sqrtPriceLimitX96?: number;
+  dex: DexType;
+  recipient: string;
+  flashLoanToken?: string;
+  flashLoanAmount?: BigNumber;
+};
+
 
 // Built Swap Call
 export interface BuiltSwapCall {
-  target: string;
-  data: string;
-  callData?: string; // Added missing property
-  value?: ethers.BigNumberish;
-  approveToken?: string;
+  to: string;          // endereço do contrato a ser chamado
+  data: string;        // calldata da função
+  value?: ethers.BigNumber;  
 }
 
 // Log metadata for enhanced logging
@@ -144,8 +168,8 @@ export type SwapStep = {
   dex: string;               // Nome do DEX, ex: "uniswapv3"
   tokenIn: string;           // Endereço do token de entrada
   tokenOut: string;          // Endereço do token de saída
-  amountIn: bigint;
-  amountOut: bigint;          // Quantidade de entrada
+  amountIn: BigNumber;
+  amountOut: BigNumber;          // Quantidade de entrada
   amountOutMin?: bigint;     // Quantidade mínima de saída esperada
   path?: string[];           // Caminho (usado por alguns DEXs como Uniswap V2/V3)
   extra?: any; 
@@ -169,13 +193,23 @@ export interface MyTransactionRequest {
 
 // Used for transaction decoding
 export interface DecodedSwapTransaction {
-  dex: DexType;
   tokenIn: string;
   tokenOut: string;
   amountIn: ethers.BigNumber;
   amountOutMin: ethers.BigNumber;
-  recipient: string; // Added missing property
   to?: string;
   path?: string[];
   deadline?: number;
+  dex: DexType;
+  recipient: string;
 }
+
+export type BasicSwapStep = {
+  dex: string;
+  tokenIn: string;
+  tokenOut: string;
+  amountIn?: BigNumber;
+  amountOut?: BigNumber;
+  poolData?: any;
+  calls?: Call[];
+};

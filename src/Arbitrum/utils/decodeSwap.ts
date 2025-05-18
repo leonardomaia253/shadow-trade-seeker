@@ -1,5 +1,5 @@
 
-import { ethers } from "ethers";
+import { ethers, BigNumber } from "ethers";
 import { DexType, DecodedSwapTransaction } from "./types";
 import { enhancedLogger } from "./enhancedLogger";
 
@@ -45,6 +45,7 @@ const DEX_ROUTERS = {
   curve:["0x2191718cd32d02b8e60badffea33e4b5dd9a0a0d"].map(a => a.toLowerCase()),
   uniswapv4:["0x2191718cd32d02b8e60badffea33e4b5dd9a0a0d"].map(a => a.toLowerCase()),
 };
+
 
 
 /**
@@ -112,14 +113,31 @@ export function decodeSwap(tx: ethers.providers.TransactionResponse): DecodedSwa
     const functionName = decodedData.name;
     const args = decodedData.args;
     
-    // Handle different router types and methods
-    if (dexType.includes('v2')) {
-      return decodeV2Swap(functionName, args, dexType, tx.value);
-    } else if (dexType.includes('v3')) {
-      return decodeV3Swap(functionName, args, dexType, tx.value);
-    }
+    // Handle different router types and methods  
+    switch (dexType) {
+  case "uniswapv2":
+  case "sushiswapv2":
+  case "camelot":
+    return decodeV2Swap(functionName, args, dexType, tx.value);
     
+  case "uniswapv3":
+  case "sushiswapv3":
+  case "pancakeswapv3":
+  case "ramsesv2": 
+    return decodeV3Swap(functionName, args, dexType, tx.value);
+    
+  case "uniswapv4":
+    return decodeUniswapV4Swap(functionName, args, dexType, tx.value);
+    
+  case "maverickv2":
+    return decodeMaverickV2Swap(functionName, args, dexType, tx.value);
+    
+  case "curve":
+    return decodeCurveSwap(functionName, args, dexType, tx.value, tx.to);
+    
+  default:
     return null;
+}
   } catch (err) {
     enhancedLogger.error(`Error decoding swap: ${err}`, {
       botType: "scanner"
@@ -150,8 +168,7 @@ function decodeV2Swap(
           amountIn,
           amountOutMin,
           path,
-          recipient: to,
-          to,
+          recipient:to,
           deadline: args[4],
           dex: dexType
         };
@@ -165,8 +182,7 @@ function decodeV2Swap(
           amountIn: amountInMax, // max amount in
           amountOutMin: amountOut, // exact amount out
           path,
-          recipient: to,
-          to,
+          recipient:to,
           deadline: args[4],
           dex: dexType
         };
@@ -181,7 +197,6 @@ function decodeV2Swap(
           amountOutMin,
           path: [WETH, ...path.slice(1)], // Path should start with WETH
           recipient: to,
-          to,
           deadline: args[3],
           dex: dexType
         };
@@ -195,8 +210,7 @@ function decodeV2Swap(
           amountIn,
           amountOutMin,
           path: [...path.slice(0, -1), WETH], // Path should end with WETH
-          recipient: to,
-          to,
+          recipient: to, 
           deadline: args[4],
           dex: dexType
         };
@@ -243,9 +257,8 @@ function decodeV3Swap(
           tokenOut,
           amountIn: tokenIn.toLowerCase() === WETH.toLowerCase() && value.gt(0) ? value : amountIn,
           amountOutMin: amountOutMinimum,
-          recipient,
-          to: recipient,
-          dex: dexType
+          recipient: recipient,
+          dex: dexType,
         };
       }
       
@@ -266,9 +279,8 @@ function decodeV3Swap(
           tokenOut: path[path.length - 1].token,
           amountIn: path[0].token.toLowerCase() === WETH.toLowerCase() && value.gt(0) ? value : amountIn,
           amountOutMin: amountOutMinimum,
-          recipient,
-          to: recipient,
-          dex: dexType
+          recipient: recipient,
+          dex:dexType
         };
       }
       
@@ -281,6 +293,135 @@ function decodeV3Swap(
     enhancedLogger.error(`Error decoding V3 swap: ${err}`, {
       botType: "scanner"
     });
+    return null;
+  }
+}
+
+
+export function decodeCurveSwap(
+    functionName: string,
+    args: any[],
+    dexType: DexType,
+    value: BigNumber,
+    txFrom: string = ""
+): DecodedSwapTransaction | null {
+  try {
+    if (functionName === "exchange" || functionName === "exchange_underlying") {
+      const i = args[0];
+      const j = args[1];
+      const dx = args[2];
+      const minDy = args[3];
+
+      return {
+        tokenIn: i,
+        tokenOut: j,
+        amountIn: dx,
+        amountOutMin: minDy,
+        dex: dexType,
+        recipient: txFrom,
+      };
+    }
+
+    if (functionName === "exchange_multiple") {
+      const routes = args[0];
+      const swapParams = args[1];
+      const amountIn = args[2];
+      const minAmountOut = args[3];
+
+      return {
+        tokenIn: routes[0],
+        tokenOut: routes[routes.length - 1],
+        amountIn,
+        amountOutMin: minAmountOut,
+        dex: dexType,
+        recipient: txFrom,
+      };
+    }
+
+    return null;
+  } catch (err) {
+    console.error("Curve decode error:", err);
+    return null;
+  }
+}
+
+export function decodeMaverickV2Swap(
+  functionName: string,
+  args: any[],
+  dexType: DexType,
+  value: BigNumber
+): DecodedSwapTransaction | null {
+  try {
+    if (functionName === "exactInputSingle") {
+      const params = args[0];
+
+      return {
+        tokenIn: params.tokenIn,
+        tokenOut: params.tokenOut,
+        amountIn: params.amountIn,
+        amountOutMin: params.amountOutMinimum,
+        recipient: params.recipient,
+        dex: dexType,
+      };
+    }
+
+    if (functionName === "exactInput") {
+      const params = args[0];
+      const { tokenIn, tokenOut } = decodeMaverickPath(params.path);
+
+      return {
+        tokenIn,
+        tokenOut,
+        amountIn: params.amountIn,
+        amountOutMin: params.amountOutMinimum,
+        recipient: params.recipient,
+        dex: dexType,
+      };
+    }
+
+    return null;
+  } catch (err) {
+    console.error("MaverickV2 decode error:", err);
+    return null;
+  }
+}
+
+export function decodeUniswapV4Swap(
+  functionName: string,
+  args: any[],
+  dexType: DexType,
+  value: BigNumber
+): DecodedSwapTransaction | null {
+  try {
+    if (functionName !== "execute") return null;
+
+    const commands = args[0];
+    const inputs = args[1];
+
+    // Procuramos comandos do tipo "Swap"
+    for (let i = 0; i < commands.length; i++) {
+      const commandType = commands[i]; // geralmente um enum ou uint8 (ex: 0x02 para swap)
+
+      if (commandType === 0x02 || commandType === "2") {
+        // Esse é um swap — decodificamos o input correspondente
+        const swapInput = inputs[i];
+
+        const decoded = decodeSwapCommandInput(swapInput);
+
+        return {
+          tokenIn: decoded.tokenIn,
+          tokenOut: decoded.tokenOut,
+          amountIn: decoded.amountIn,
+          amountOutMin: decoded.amountOutMin,
+          recipient: decoded.recipient,
+          dex: dexType,
+        };
+      }
+    }
+
+    return null;
+  } catch (err) {
+    console.error("UniswapV4 decode error:", err);
     return null;
   }
 }
@@ -324,4 +465,42 @@ function decodeV3Path(pathBytes: string): { token: string, fee: number }[] | nul
     });
     return null;
   }
+}
+
+function decodeMaverickPath(path: string): { tokenIn: string; tokenOut: string } {
+  if (!path || path.length < 86) throw new Error("Invalid path");
+
+  // token = 20 bytes (40 hex chars), fee = 3 bytes (6 hex chars)
+  const stepSize = 40 + 6; // 46
+
+  const tokenIn = "0x" + path.slice(2, 42);
+
+  const hops = Math.floor((path.length - 2) / stepSize);
+  const tokenOutStart = 2 + (stepSize * (hops - 1)) + 46;
+  const tokenOut = "0x" + path.slice(tokenOutStart, tokenOutStart + 40);
+
+  return { tokenIn, tokenOut };
+}
+
+function decodeSwapCommandInput(swapInput: string): {
+  tokenIn: string;
+  tokenOut: string;
+  amountIn: BigNumber;
+  amountOutMin: BigNumber;
+  recipient: string;
+} {
+  const abiCoder = new ethers.utils.AbiCoder();
+
+  const [tokenIn, tokenOut, amountIn, amountOutMin, recipient] = abiCoder.decode(
+    ["address", "address", "uint256", "uint256", "address"],
+    swapInput
+  );
+
+  return {
+    tokenIn,
+    tokenOut,
+    amountIn,
+    amountOutMin,
+    recipient,
+  };
 }

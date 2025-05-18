@@ -1,4 +1,3 @@
-
 import { ethers } from "ethers";
 import { CallData } from "../../utils/types";
 
@@ -12,36 +11,26 @@ export async function buildOrchestrateCall({
   amount: ethers.BigNumberish;
   calls: CallData[];
 }): Promise<{ 
-target: string;
-data: string;
-requiresApproval: boolean;
-approvalToken: string;
-approvalAmount: number;
-to: string;
-callData: string;
-dex: "uniswapv3";
+  data: string;
+  to: string;
 }> {
-  const executorAddress = "";
+  const executorAddress = "0xebc996030ad65e113ba2f03e55de080044b83dca";
+  
   const iface = new ethers.utils.Interface([
     "function orchestrate((address provider, address token, uint256 amount)[],(address target, bytes data, bool requiresApproval, address approvalToken, uint256 approvalAmount)[])"
   ]);
 
-  const flashLoanRequest = [{
-    provider: "0xE0dB1bE70bCc4D58F00184F9371b6fC0FbB1dfC5", // AAVE
-    token,
-    amount,
+  // Definindo o flashloan (exemplo com Aave como provider)
+  const flashloan = [{
+    provider: "0xC4dCB5126a3AfEd129BC3668Ea19285A9f56D15D", // Endereço real do provider, ex: Aave pool
+    token: token,
+    amount: amount
   }];
 
-  const calldata = iface.encodeFunctionData("orchestrate", [flashLoanRequest, calls]);
+  const data = iface.encodeFunctionData("orchestrate", [flashloan, calls]);
 
   return {
-    target: executorAddress,
     to: executorAddress,
-    data: calldata,
-    callData: calldata,
-    requiresApproval: false,
-    approvalToken: ethers.constants.AddressZero,
-    approvalAmount: 0,
-    dex: "uniswapv3"
+    data: data,
   };
 }

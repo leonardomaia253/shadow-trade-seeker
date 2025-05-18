@@ -1,74 +1,82 @@
-
 import { ethers } from "ethers";
 import { COMMON_TOKENS_ARBITRUM } from "../constants/addresses";
+import { CHAINLINK_FEEDS } from "../constants/addresses";
+import { AggregatorV3InterfaceABI } from "../constants/abis";
 import { enhancedLogger } from "./enhancedLogger";
 
-// Interface simples para preços
-interface TokenPrice {
-  [key: string]: bigint;
+// Interface para o cache
+interface TokenPriceCache {
+  price: bigint;
+  timestamp: number;
 }
 
-// Cache de preços para evitar múltiplas chamadas à API
-const priceCache: Record<string, { price: bigint; timestamp: number }> = {};
+const priceCache: Record<string, TokenPriceCache> = {};
 const CACHE_TTL = 60 * 1000; // 60 segundos
 
-// Função para buscar o preço de um token
-export async function getTokenPrice(tokenAddress: string, provider?: ethers.providers.Provider): Promise<bigint> {
+// Preços fixos para fallback
+const fixedPrices: Record<string, bigint> = {
+  [COMMON_TOKENS_ARBITRUM.WETH.toLowerCase()]: ethers.utils.parseEther("3000").toBigInt(),
+  [COMMON_TOKENS_ARBITRUM.USDC.toLowerCase()]: ethers.utils.parseUnits("1", 6).toBigInt(),
+  [COMMON_TOKENS_ARBITRUM.USDT.toLowerCase()]: ethers.utils.parseUnits("1", 6).toBigInt(),
+  [COMMON_TOKENS_ARBITRUM.DAI.toLowerCase()]: ethers.utils.parseEther("1").toBigInt(),
+  [COMMON_TOKENS_ARBITRUM.WBTC.toLowerCase()]: ethers.utils.parseUnits("50000", 8).toBigInt(),
+  [COMMON_TOKENS_ARBITRUM.ARB.toLowerCase()]: ethers.utils.parseEther("1.5").toBigInt(),
+  [COMMON_TOKENS_ARBITRUM.GMX.toLowerCase()]: ethers.utils.parseEther("45").toBigInt(),
+};
+
+// Função auxiliar para buscar o preço do Chainlink
+async function getPriceFromChainlink(
+  tokenAddress: string,
+  provider: ethers.providers.Provider
+): Promise<bigint | null> {
+  const feedAddress = CHAINLINK_FEEDS[tokenAddress.toLowerCase()];
+  if (!feedAddress) return null;
+
   try {
-    const normalizedAddress = tokenAddress.toLowerCase();
-    const now = Date.now();
-    
-    // Verificar se o preço está em cache e ainda é válido
-    if (
-      priceCache[normalizedAddress] &&
-      now - priceCache[normalizedAddress].timestamp < CACHE_TTL
-    ) {
-      return priceCache[normalizedAddress].price;
-    }
-    
-    // Para simplificar, usaremos preços fixos para tokens populares
-    // Em produção, isto seria substituído por uma chamada à API de preços ou a um Oracle
-    const fixedPrices: TokenPrice = {
-      [COMMON_TOKENS_ARBITRUM.WETH.toLowerCase()]: ethers.utils.parseEther("3000").toBigInt(), // 3000 USD
-      [COMMON_TOKENS_ARBITRUM.USDC.toLowerCase()]: ethers.utils.parseUnits("1", 6).toBigInt(), // 1 USD
-      [COMMON_TOKENS_ARBITRUM.USDT.toLowerCase()]: ethers.utils.parseUnits("1", 6).toBigInt(), // 1 USD
-      [COMMON_TOKENS_ARBITRUM.DAI.toLowerCase()]: ethers.utils.parseEther("1").toBigInt(), // 1 USD
-      [COMMON_TOKENS_ARBITRUM.WBTC.toLowerCase()]: ethers.utils.parseUnits("50000", 8).toBigInt(), // 50000 USD
-      [COMMON_TOKENS_ARBITRUM.ARB.toLowerCase()]: ethers.utils.parseEther("1.5").toBigInt(), // 1.5 USD
-      [COMMON_TOKENS_ARBITRUM.GMX.toLowerCase()]: ethers.utils.parseEther("45").toBigInt(), // 45 USD
-    };
-    
-    // Verificar se temos um preço fixo para o token
-    if (normalizedAddress in fixedPrices) {
-      const price = fixedPrices[normalizedAddress];
-      
-      // Salvar no cache
-      priceCache[normalizedAddress] = {
-        price,
-        timestamp: now,
-      };
-      
-      return price;
-    }
-    
-    // Para tokens desconhecidos, buscar preço em DEXs ou Oracle
-    // Aqui seria implementada a lógica para acessar uma API ou Oracle
-    
-    // Por enquanto, retornamos um valor padrão para tokens desconhecidos
-    const defaultPrice = ethers.utils.parseEther("1").toBigInt(); // 1 USD por padrão
-    
-    // Salvar no cache
-    priceCache[normalizedAddress] = {
-      price: defaultPrice,
-      timestamp: now,
-    };
-    
-    enhancedLogger.debug(`Using default price for unknown token ${tokenAddress}`);
-    
-    return defaultPrice;
-  } catch (error) {
-    enhancedLogger.error(`Error fetching token price for ${tokenAddress}:`, { data: error });
-    // Em caso de erro, retornar um preço padrão
-    return ethers.utils.parseEther("1").toBigInt();
+    const aggregator = new ethers.Contract(feedAddress, AggregatorV3InterfaceABI, provider);
+    const [, answer] = await aggregator.latestRoundData();
+    const decimals = await aggregator.decimals();
+
+    if (answer.lte(0)) return null;
+
+    return ethers.utils.parseUnits(answer.toString(), 18 - decimals).toBigInt();
+  } catch (err) {
+    enhancedLogger.warn(`Chainlink erro para ${tokenAddress}:`, { data: err });
+    return null;
   }
+}
+
+// Função principal
+export async function getTokenPrice(
+  tokenAddress: string,
+  provider: ethers.providers.Provider
+): Promise<bigint> {
+  const normalized = tokenAddress.toLowerCase();
+  const now = Date.now();
+
+  // Verificar cache
+  if (priceCache[normalized] && now - priceCache[normalized].timestamp < CACHE_TTL) {
+    return priceCache[normalized].price;
+  }
+
+  // 1. Tentar Chainlink
+  const chainlinkPrice = await getPriceFromChainlink(normalized, provider);
+  if (chainlinkPrice) {
+    priceCache[normalized] = { price: chainlinkPrice, timestamp: now };
+    return chainlinkPrice;
+  }
+
+  // 2. Fallback: preço fixo
+  if (fixedPrices[normalized]) {
+    const fixed = fixedPrices[normalized];
+    priceCache[normalized] = { price: fixed, timestamp: now };
+    enhancedLogger.debug(`Using fixed price for ${normalized}`);
+    return fixed;
+  }
+
+  // 3. Fallback genérico
+  const defaultPrice = ethers.utils.parseEther("1").toBigInt(); // 1 USD
+  priceCache[normalized] = { price: defaultPrice, timestamp: now };
+  enhancedLogger.warn(`Defaulting to 1 USD for unknown token ${normalized}`);
+  return defaultPrice;
 }

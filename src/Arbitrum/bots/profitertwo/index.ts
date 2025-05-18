@@ -2,9 +2,9 @@
 import { ethers } from "ethers";
 import "dotenv/config";
 import { getProvider } from "../../config/provider";
-import { buildOrchestrationFromRoute } from "./arbitragebuilder";
+import { buildOrchestrationFromRoute } from "./profiter2builder";
 import { fetchTopTokensArbitrum } from "../../utils/tokensdefi";
-import { findBestArbitrageRoute } from "./arbitrageScanner";
+import { findBestMultiHopRoute } from "./profiter2scanner";
 import { TokenInfo } from "../../utils/types";
 import { convertRouteToSwapSteps } from "../../utils/swapsteps";
 import { createClient } from "@supabase/supabase-js";
@@ -99,7 +99,7 @@ async function executeCycle() {
 
     console.log(`✅ Tokens carregados: ${tokenList.length}. Rodando busca de arbitragem...`);
 
-    const bestRoute = await findBestArbitrageRoute({
+    const bestRoute = await findBestMultiHopRoute({
       provider,
       baseToken: currentBaseToken,
       tokenList,

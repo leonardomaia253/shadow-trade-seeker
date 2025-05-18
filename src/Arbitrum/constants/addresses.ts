@@ -1,6 +1,6 @@
 
-// Lending Protocol Addresses
-export const LENDING_PROTOCOL_ADDRESSES = {
+// Lending Protocol Addresses Arbitrum
+export const LENDING_POOL = {
   AAVE_V3: {
     POOL: "0x794a61358D6845594F94dc1DB02A252b5b4814aD",
     DATA_PROVIDER: "0x69FA688f1Dc47d4B5d8029D5a35FB7a548310654",
@@ -44,6 +44,20 @@ export const DEX_ROUTER = {
   sushiswapv2: "0xA7caC4207579A179c1069435d032ee0F9F150e5c",
   pancakeswapv3: "0x13f4ea83d0bd40e75c8222255bc855a974568dd4",
   ramsesv2: "0xaa273216cc9201a1e4285ca623f584badc736944",
+};
+
+// DEX Router Addresses
+export const LENDING_PROTOCOL_ADDRESSES = {
+  aave: "0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24",
+  spark: "0xE592427A0AEce92De3Edee1F18E0157C05861564", 
+  venus: "0xA7caC4207579A179c1069435d032ee0F9F150e5c", 
+  radiant: "0xA51afAFe0263b40EdaEf0Df8781eA9aa03E381a3", 
+  abracadabra: "0xc873fEcbd354f5A56E00E710B90EF4201db2448d", 
+  ironbank: "0x5c3b380e5Aeec389d1014Da3Eb372FA2C9e0fc76",
+  morpho: "0x2191718cd32d02b8e60badffea33e4b5dd9a0a0d", 
+  llamalend: "0xA7caC4207579A179c1069435d032ee0F9F150e5c",
+  creamfinance: "0x13f4ea83d0bd40e75c8222255bc855a974568dd4",
+  compound: "0xaa273216cc9201a1e4285ca623f584badc736944",
 };
 
 export const uniswapv2="0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24";
@@ -103,4 +117,21 @@ export const MEV_RELATED = {
 };
 
 // Executor contract address
-export const EXECUTOR_CONTRACT = "0xebc996030ad65e113ba2f03e55de080044b83dca";
+export const executorAddress = "0xebc996030ad65e113ba2f03e55de080044b83dca";
+
+export const CHAINLINK_FEEDS: Record<string, string> = {
+  // Token: Feed (em Arbitrum)
+  "0x82af49447d8a07e3bd95bd0d56f35241523fbab1": "0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612", // WETH/USD
+  "0xaf88d065e77c8cC2239327C5EDb3A432268e5831": "0x6ce185860a4963106506C203335A2910413708e9", // USDC/USD
+  "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9": "0x3f3f5dF88dC9F13eac63DF89EC16ef6e7E25DdE7", // USDT/USD
+  "0xda10009cbd5d07dd0cecc66161fc93d7c9000da1": "0x0d79df66BE487753B02D015Fb622DED7f0E9798d", // DAI/USD
+  "0x2f2a2543b76a4166549f7aaab1e5cbe5f0f175c0": "0x6ce185860a4963106506C203335A2910413708e9", // WBTC/USD (mesmo feed que USDC/USD — ajuste se preferir outro)
+  "0x912ce59144191c1204e64559fe8253a0e49e6548": "0xb2A824043730FE05F3DA2efafa1CBbe83fa548D6", // ARB/USD
+  "0xfc5a1a6eb076a5f6a6a3f71d3df93076f1d2a77f": "0xDB98056FecFff59D032aB628337A4887110df3dB", // GMX/USD
+};
+
+
+
+
+//--------------------------------------------------BASE-------------------------------------------------------------------//
+

@@ -32,6 +32,7 @@ export async function buildOrchestrationFromRoute({
     if (!preSwapDex) throw new Error("preSwapDex não definido");
 
     const amountIn = firstStep.amountIn ?? BigInt(0);
+    const amountInBN = BigNumber.from(amountIn.toString());
 
     // Aprova altToken para o primeiro DEX do pré-swap
     const preSwapSpender = typeof firstStep.poolData === "string"

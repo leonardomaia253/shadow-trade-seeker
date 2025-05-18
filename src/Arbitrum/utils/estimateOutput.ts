@@ -46,8 +46,8 @@ function encodeUniswapV3Path(path: string[], fees: number[]): string {
 }
 
 export async function estimateSwapOutput(
-  fromToken: string,
-  toToken: string,
+  tokenIn: string,
+  tokenOut: string,
   amountIn: ethers.BigNumber,
   dex: string
 ): Promise<ethers.BigNumber> {
@@ -57,29 +57,29 @@ export async function estimateSwapOutput(
     // V2-style routers
     if (["uniswapv2", "sushiswapv2", "ramsesv2","camelot"].includes(lowerDex)) {
       const router = new ethers.Contract(DEX_ROUTER[lowerDex], UniswapV2RouterABI, provider);
-      const amountsOut = await router.getAmountsOut(amountIn, [fromToken, toToken]);
+      const amountsOut = await router.getAmountsOut(amountIn, [tokenIn, tokenOut]);
       return amountsOut[1];
     }
 
     if (["uniswapv4"].includes(lowerDex)) {
       const router = new ethers.Contract(DEX_ROUTER[lowerDex], UniswapV4RouterABI, provider);
-      const amountsOut = await router.getAmountsOut(amountIn, [fromToken, toToken]);
+      const amountsOut = await router.quote(amountIn, [tokenIn, tokenOut]);
       return amountsOut[1];
     }
 
     // V3/V4 with Quoter
     if (["uniswapv3", "sushiswapv3", "pancakeswapv3"].includes(lowerDex)) {
       const quoter = new ethers.Contract(DEX_ROUTER[lowerDex], UniswapV3QuoterABI, provider);
-      const path = encodeUniswapV3Path([fromToken, toToken], [3000]); // assume fee de 0.3%
-      const quote = await quoter.callStatic.quoteExactInput(path, amountIn);
-      return quote.amountOut || quote; // alguns retornam só o número
+      const path = encodeUniswapV3Path([tokenIn, tokenOut], [3000]); // assume fee de 0.3%
+      const amountsOut = await quoter.callStatic.quoteExactInput(path, amountIn);
+      return amountsOut.amountOut || amountsOut; // alguns retornam só o número
     }
 
     if (["maverickv2"].includes(lowerDex)) {
       const quoter = new ethers.Contract(DEX_ROUTER[lowerDex], MaverickQuoterABI, provider);
-      const path = encodeUniswapV3Path([fromToken, toToken], [3000]); // assume fee de 0.3%
-      const quote = await quoter.callStatic.quoteExactInput(path, amountIn);
-      return quote.amountOut || quote; // alguns retornam só o número
+      const path = encodeUniswapV3Path([tokenIn, tokenOut], [3000]); // assume fee de 0.3%
+      const amountsOut = await quoter.callStatic.quoteExactInput(path, amountIn);
+      return amountsOut.amountOut || amountsOut; // alguns retornam só o número
     }
 
     // Curve (exige índice dos tokens)
@@ -92,13 +92,13 @@ export async function estimateSwapOutput(
     const registry = new ethers.Contract(registryAddress, CurveRegistryV2ABI, provider);
 
     // Busca o pool correto para o par de tokens
-    const poolAddress = await registry.find_pool_for_coins(fromToken, toToken);
+    const poolAddress = await registry.find_pool_for_coins(tokenIn, tokenOut);
     if (poolAddress === ethers.constants.AddressZero) {
       throw new Error("Curve pool not found for token pair");
     }
 
     // Consulta índices dos tokens no pool
-    const [iRaw, jRaw, success] = await registry.get_coin_indices(poolAddress, fromToken, toToken);
+    const [iRaw, jRaw, success] = await registry.get_coin_indices(poolAddress, tokenIn, tokenOut);
     if (!success) {
       throw new Error("Tokens pair not found in Curve pool");
     }

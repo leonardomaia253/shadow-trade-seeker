@@ -28,8 +28,22 @@ export const EXECUTOR_ABI = [
 export const UNISWAP_V2_ROUTER_ABI = [
   "function getAmountsOut(uint256 amountIn, address[] memory path) view returns (uint256[] memory amounts)",
   "function swapExactTokensForTokens(uint256 amountIn, uint256 amountOutMin, address[] calldata path, address to, uint256 deadline) returns (uint256[] memory amounts)",
-  "function swapETHForExactTokens(uint256 amountOut, address[] calldata path, address to, uint256 deadline) payable returns (uint256[] memory amounts)"
+  "function swapETHForExactTokens(uint256 amountOut, address[] calldata path, address to, uint256 deadline) payable returns (uint256[] memory amounts)",
+  {
+    "name": "getAmountsIn",
+    "type": "function",
+    "stateMutability": "view",
+    "inputs": [
+      { "type": "uint256", "name": "amountOut" },
+      { "type": "address[]", "name": "path" }
+    ],
+    "outputs": [
+      { "type": "uint256[]", "name": "amounts" }
+    ]
+  }
 ];
+
+
 
 export const UNISWAP_V3_QUOTER_ABI = [
   "function quoteExactInputSingle(address tokenIn, address tokenOut, uint24 fee, uint256 amountIn, uint160 sqrtPriceLimitX96) external returns (uint256 amountOut)",
@@ -48,3 +62,72 @@ export const MAVERICK_V2_PAIR_ABI = [
     "function getActiveBins() external view returns (uint128[] memory)",
     "function liquidityMap() external view returns (uint256)"
 ];
+
+export const MAVERICK_QUOTER_ABI = [
+  {
+    "inputs": [
+      { "internalType": "address", "name": "tokenIn", "type": "address" },
+      { "internalType": "address", "name": "tokenOut", "type": "address" },
+      { "internalType": "uint256", "name": "amountOut", "type": "uint256" },
+      { "internalType": "uint160", "name": "sqrtPriceLimitX96", "type": "uint160" }
+    ],
+    "name": "quoteExactOutputSingle",
+    "outputs": [
+      { "internalType": "uint256", "name": "amountIn", "type": "uint256" }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+];
+
+
+export const AggregatorV3InterfaceABI = [
+  {
+    inputs: [],
+    name: "decimals",
+    outputs: [{ internalType: "uint8", name: "", type: "uint8" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "description",
+    outputs: [{ internalType: "string", name: "", type: "string" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "version",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint80", name: "_roundId", type: "uint80" }],
+    name: "getRoundData",
+    outputs: [
+      { internalType: "uint80", name: "roundId", type: "uint80" },
+      { internalType: "int256", name: "answer", type: "int256" },
+      { internalType: "uint256", name: "startedAt", type: "uint256" },
+      { internalType: "uint256", name: "updatedAt", type: "uint256" },
+      { internalType: "uint80", name: "answeredInRound", type: "uint80" },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "latestRoundData",
+    outputs: [
+      { internalType: "uint80", name: "roundId", type: "uint80" },
+      { internalType: "int256", name: "answer", type: "int256" },
+      { internalType: "uint256", name: "startedAt", type: "uint256" },
+      { internalType: "uint256", name: "updatedAt", type: "uint256" },
+      { internalType: "uint80", name: "answeredInRound", type: "uint80" },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+];
+
