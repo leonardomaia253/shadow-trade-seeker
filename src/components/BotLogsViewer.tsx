@@ -1,183 +1,167 @@
 
 import React, { useState, useEffect } from 'react';
+import { supabase } from "@/integrations/supabase/client"; 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
-import { Activity, AlertCircle, Info, Check, ChevronDown } from "lucide-react";
+import { Info, AlertTriangle, AlertCircle, Bug, Activity, Database, Settings, Code } from "lucide-react";
 
-interface BotLogEntry {
+interface Log {
   id: string;
-  level: string;
+  level: string; 
   message: string;
   category: string;
   timestamp: string;
   source?: string;
-  bot_type?: string;
+  tx_hash?: string;
   metadata?: any;
 }
 
 interface BotLogsViewerProps {
-  botType?: string;
+  botType?: string;  // Optional, to filter logs for a specific bot
+  maxLogs?: number;  // Optional, to limit the number of logs
 }
 
-const BotLogsViewer = ({ botType = 'arbitrage' }: BotLogsViewerProps) => {
-  const [logs, setLogs] = useState<BotLogEntry[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [logLevel, setLogLevel] = useState<string>("all");
-  
+const BotLogsViewer = ({ botType = 'arbitrage', maxLogs = 10 }: BotLogsViewerProps) => {
+  const [logs, setLogs] = useState<Log[]>([]);
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
     // Function to fetch logs
     const fetchLogs = async () => {
-      setIsLoading(true);
       try {
         let query = supabase
           .from('bot_logs')
           .select('*')
-          .eq('bot_type', botType)
           .order('timestamp', { ascending: false })
-          .limit(100);
-          
-        if (logLevel !== 'all') {
-          query = query.eq('level', logLevel);
+          .limit(maxLogs);
+        
+        if (botType) {
+          query = query.eq('bot_type', botType);
         }
         
         const { data, error } = await query;
         
         if (error) throw error;
         
-        setLogs(data || []);
-      } catch (err) {
-        console.error("Failed to fetch logs:", err);
+        if (data) {
+          setLogs(data);
+        }
+      } catch (error) {
+        console.error('Error fetching logs:', error);
       } finally {
-        setIsLoading(false);
+        setLoading(false);
       }
     };
     
-    // Initial fetch
     fetchLogs();
     
     // Subscribe to real-time updates
     const channel = supabase
-      .channel(`${botType}-logs-updates`)
+      .channel(`logs-channel-${botType}`)
       .on('postgres_changes', 
-          { event: 'INSERT', schema: 'public', table: 'bot_logs', filter: `bot_type=eq.${botType}` },
-          (payload) => {
-            const newLog = payload.new as BotLogEntry;
-            
-            // Add the new log only if it matches our current log level filter
-            if (logLevel === 'all' || newLog.level === logLevel) {
-              setLogs(prevLogs => [newLog, ...prevLogs.slice(0, 99)]);
-            }
-          })
+        { event: 'INSERT', schema: 'public', table: 'bot_logs', filter: botType ? `bot_type=eq.${botType}` : undefined }, 
+        (payload) => {
+          setLogs(prevLogs => [payload.new as Log, ...prevLogs.slice(0, maxLogs - 1)]);
+        }
+      )
       .subscribe();
       
-    // Clean up subscription
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [botType, logLevel]);
+  }, [botType, maxLogs]);
   
-  // Function to get color and icon based on log level
-  const getLevelStyles = (level: string) => {
+  // Function to get icon based on log level
+  const getLogLevelIcon = (level: string) => {
     switch (level.toLowerCase()) {
-      case 'error':
-        return { color: 'text-red-500', icon: <AlertCircle className="h-4 w-4 mr-1" /> };
-      case 'warn':
-        return { color: 'text-yellow-500', icon: <AlertCircle className="h-4 w-4 mr-1" /> };
       case 'info':
-        return { color: 'text-neon-blue', icon: <Info className="h-4 w-4 mr-1" /> };
-      case 'success':
-        return { color: 'text-neon-green', icon: <Check className="h-4 w-4 mr-1" /> };
+        return <Info className="h-4 w-4 text-blue-400" />;
+      case 'warn':
+        return <AlertTriangle className="h-4 w-4 text-yellow-400" />;
+      case 'error':
+        return <AlertCircle className="h-4 w-4 text-red-400" />;
+      case 'debug':
+        return <Bug className="h-4 w-4 text-green-400" />;
       default:
-        return { color: 'text-gray-400', icon: <Activity className="h-4 w-4 mr-1" /> };
+        return <Activity className="h-4 w-4 text-gray-400" />;
     }
   };
   
-  // Format timestamp to localized time
+  // Function to get icon based on category
+  const getCategoryIcon = (category: string) => {
+    switch (category.toLowerCase()) {
+      case 'bot_state':
+        return <Activity className="h-4 w-4" />;
+      case 'transaction':
+        return <Database className="h-4 w-4" />;
+      case 'configuration':
+        return <Settings className="h-4 w-4" />;
+      case 'user_action':
+        return <Info className="h-4 w-4" />;
+      case 'code':
+        return <Code className="h-4 w-4" />;
+      default:
+        return <Activity className="h-4 w-4" />;
+    }
+  };
+  
+  // Format timestamp
   const formatTimestamp = (timestamp: string) => {
-    try {
-      const date = new Date(timestamp);
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) +
-             ' ' + date.toLocaleDateString();
-    } catch (e) {
-      return timestamp;
-    }
+    const date = new Date(timestamp);
+    return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
   };
-  
+
   return (
     <Card className="bg-crypto-card border-crypto-border shadow-glow-sm">
-      <CardHeader className="pb-2 flex flex-row items-center justify-between">
-        <CardTitle className="text-xl text-neon-blue flex items-center">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-xl flex items-center">
           <Activity className="mr-2" /> Bot Logs
         </CardTitle>
-        <Select
-          value={logLevel}
-          onValueChange={setLogLevel}
-        >
-          <SelectTrigger className="w-32 bg-crypto-darker">
-            <SelectValue placeholder="Log Level" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Levels</SelectItem>
-            <SelectItem value="info">Info</SelectItem>
-            <SelectItem value="warn">Warnings</SelectItem>
-            <SelectItem value="error">Errors</SelectItem>
-            <SelectItem value="success">Success</SelectItem>
-          </SelectContent>
-        </Select>
       </CardHeader>
-      <CardContent>
-        <div className="h-80 overflow-auto border border-crypto-border rounded-md bg-crypto-darker p-2">
-          {isLoading ? (
-            <div className="flex justify-center items-center h-full">
-              <span className="text-neon-blue animate-pulse">Loading logs...</span>
-            </div>
-          ) : logs.length === 0 ? (
-            <div className="flex justify-center items-center h-full text-gray-400">
-              <span>No logs found</span>
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {logs.map((log) => {
-                const { color, icon } = getLevelStyles(log.level);
-                return (
-                  <div 
-                    key={log.id} 
-                    className="p-2 border-b border-crypto-border last:border-b-0 hover:bg-black/20"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className={`flex items-center font-bold ${color}`}>
-                        {icon}
-                        <span>{log.level.toUpperCase()}</span>
-                      </div>
-                      <span className="text-xs text-gray-400">{formatTimestamp(log.timestamp)}</span>
+      <CardContent className="max-h-64 overflow-y-auto">
+        {loading ? (
+          <div className="flex justify-center items-center h-32">
+            <div className="animate-pulse text-muted-foreground">Loading logs...</div>
+          </div>
+        ) : logs.length === 0 ? (
+          <div className="text-center py-6 text-muted-foreground">No logs to display</div>
+        ) : (
+          <div className="space-y-2">
+            {logs.map((log) => (
+              <div 
+                key={log.id} 
+                className="p-2 border-b border-crypto-border last:border-0 hover:bg-crypto-darker/30 transition-colors"
+              >
+                <div className="flex items-start">
+                  <div className="mr-2 mt-1">{getLogLevelIcon(log.level)}</div>
+                  <div className="flex-1">
+                    <div className="flex justify-between items-start">
+                      <p className="text-sm font-medium">{log.message}</p>
+                      <span className="text-xs text-muted-foreground">{formatTimestamp(log.timestamp)}</span>
                     </div>
-                    <div className="mt-1 text-sm">{log.message}</div>
-                    <div className="mt-1 flex items-center text-xs text-gray-400">
-                      <span className="bg-crypto-darker px-2 py-0.5 rounded">{log.category}</span>
+                    <div className="flex items-center mt-1 text-xs text-muted-foreground">
+                      {getCategoryIcon(log.category)}
+                      <span className="ml-1 mr-2">{log.category}</span>
                       {log.source && (
-                        <span className="ml-2 bg-crypto-darker px-2 py-0.5 rounded">
-                          Source: {log.source}
-                        </span>
+                        <span className="mr-2">from: {log.source}</span>
+                      )}
+                      {log.tx_hash && (
+                        <span className="truncate max-w-sm">tx: {log.tx_hash.substring(0, 10)}...</span>
                       )}
                     </div>
                     {log.metadata && (
-                      <details className="mt-2 text-xs">
-                        <summary className="cursor-pointer flex items-center text-gray-400 hover:text-gray-300">
-                          <ChevronDown className="h-3 w-3 mr-1" />
-                          Details
-                        </summary>
-                        <div className="p-2 mt-1 bg-crypto-darker rounded overflow-x-auto">
-                          <pre className="text-xs text-gray-300">{JSON.stringify(log.metadata, null, 2)}</pre>
-                        </div>
+                      <details className="mt-1">
+                        <summary className="text-xs text-neon-blue cursor-pointer">Details</summary>
+                        <pre className="text-xs bg-crypto-darker p-2 mt-1 rounded overflow-x-auto whitespace-pre-wrap">
+                          {JSON.stringify(log.metadata, null, 2)}
+                        </pre>
                       </details>
                     )}
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

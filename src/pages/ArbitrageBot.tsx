@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,6 +9,7 @@ import BotPerformance from '@/components/BotPerformance';
 import BotLogsViewer from '@/components/BotLogsViewer';
 import { TokenInfo } from '@/Arbitrum/utils/types';
 import { enhancedLogger } from '@/Arbitrum/utils/enhancedLogger';
+import BotNavigation from '@/components/BotNavigation';
 
 // Define the bot statistics type to match the database schema
 interface BotStatistics {
@@ -193,6 +193,8 @@ const ArbitrageBot = () => {
       <div className="container mx-auto px-4 py-6">
         <h1 className="text-2xl mb-6 font-bold text-neon-blue">Arbitrage Bot Control</h1>
         
+        <BotNavigation />
+        
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           <div className="lg:col-span-1">
             <BotConfiguration 
@@ -215,7 +217,7 @@ const ArbitrageBot = () => {
         
         {/* Add BotLogsViewer component below the control panel */}
         <div className="mb-6">
-          <BotLogsViewer />
+          <BotLogsViewer botType="arbitrage" />
         </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

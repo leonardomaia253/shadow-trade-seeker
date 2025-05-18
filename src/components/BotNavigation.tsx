@@ -1,70 +1,52 @@
 
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Button } from "@/components/ui/button";
-import { Bot, TrendingUp, ShoppingCart, Zap, Database } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowBigUpDash, ArrowBigDownDash, Banknote, BarChartHorizontal, FlaskRound, FlaskConical } from "lucide-react";
 
 const BotNavigation = () => {
-  const location = useLocation();
-  
-  const isActive = (path: string) => {
-    return location.pathname === path;
-  };
-  
   return (
-    <div className="flex flex-wrap gap-2 mb-6">
-      <Link to="/arbitrage">
-        <Button 
-          variant={isActive('/arbitrage') ? "default" : "outline"} 
-          className={`flex items-center ${isActive('/arbitrage') ? 'bg-neon-blue text-black' : ''}`}
-        >
-          <Bot className="mr-2 h-4 w-4" /> Arbitrage Bot
-        </Button>
+    <div className="flex flex-wrap gap-2 mb-6 overflow-x-auto pb-2">
+      <Link 
+        to="/arbitrage" 
+        className="flex items-center px-4 py-2 bg-crypto-card border-crypto-border rounded-md text-neon-blue hover:bg-crypto-darker transition-colors"
+      >
+        <ArrowBigUpDash className="mr-2 h-4 w-4" />
+        Arbitrage Bot
       </Link>
-      
-      <Link to="/profiter-one">
-        <Button 
-          variant={isActive('/profiter-one') ? "default" : "outline"}
-          className={`flex items-center ${isActive('/profiter-one') ? 'bg-neon-green text-black' : ''}`}
-        >
-          <TrendingUp className="mr-2 h-4 w-4" /> Profiter One
-        </Button>
+      <Link 
+        to="/profiter-one" 
+        className="flex items-center px-4 py-2 bg-crypto-card border-crypto-border rounded-md text-neon-green hover:bg-crypto-darker transition-colors"
+      >
+        <Banknote className="mr-2 h-4 w-4" />
+        Profiter One Bot
       </Link>
-      
-      <Link to="/profiter-two">
-        <Button 
-          variant={isActive('/profiter-two') ? "default" : "outline"}
-          className={`flex items-center ${isActive('/profiter-two') ? 'bg-neon-pink text-black' : ''}`}
-        >
-          <TrendingUp className="mr-2 h-4 w-4" /> Profiter Two
-        </Button>
+      <Link 
+        to="/profiter-two" 
+        className="flex items-center px-4 py-2 bg-crypto-card border-crypto-border rounded-md text-neon-pink hover:bg-crypto-darker transition-colors"
+      >
+        <BarChartHorizontal className="mr-2 h-4 w-4" />
+        Profiter Two Bot
       </Link>
-      
-      <Link to="/liquidation">
-        <Button 
-          variant={isActive('/liquidation') ? "default" : "outline"}
-          className={`flex items-center ${isActive('/liquidation') ? 'bg-neon-purple text-black' : ''}`}
-        >
-          <Database className="mr-2 h-4 w-4" /> Liquidation Bot
-        </Button>
+      <Link 
+        to="/liquidation" 
+        className="flex items-center px-4 py-2 bg-crypto-card border-crypto-border rounded-md text-neon-purple hover:bg-crypto-darker transition-colors"
+      >
+        <ArrowBigDownDash className="mr-2 h-4 w-4" />
+        Liquidation Bot
       </Link>
-      
-      <Link to="/frontrun">
-        <Button 
-          variant={isActive('/frontrun') ? "default" : "outline"}
-          className={`flex items-center ${isActive('/frontrun') ? 'bg-neon-yellow text-black' : ''}`}
-        >
-          <Zap className="mr-2 h-4 w-4" /> Frontrun Bot
-        </Button>
+      <Link 
+        to="/frontrun" 
+        className="flex items-center px-4 py-2 bg-crypto-card border-crypto-border rounded-md text-neon-yellow hover:bg-crypto-darker transition-colors"
+      >
+        <FlaskRound className="mr-2 h-4 w-4" />
+        Frontrun Bot
       </Link>
-      
-      <Link to="/sandwich">
-        <Button 
-          variant={isActive('/sandwich') ? "default" : "outline"}
-          className={`flex items-center ${isActive('/sandwich') ? 'bg-neon-orange text-black' : ''}`}
-        >
-          <ShoppingCart className="mr-2 h-4 w-4" /> Sandwich Bot
-        </Button>
+      <Link 
+        to="/sandwich" 
+        className="flex items-center px-4 py-2 bg-crypto-card border-crypto-border rounded-md text-neon-orange hover:bg-crypto-darker transition-colors"
+      >
+        <FlaskConical className="mr-2 h-4 w-4" />
+        Sandwich Bot
       </Link>
     </div>
   );
