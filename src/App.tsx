@@ -8,6 +8,9 @@ import Index from "./pages/Index";
 import ArbitrageBot from "./pages/ArbitrageBot";
 import ProfiterOneBot from "./pages/ProfiterOneBot";
 import ProfiterTwoBot from "./pages/ProfiterTwoBot";
+import LiquidationBot from "./pages/LiquidationBot";
+import FrontrunBot from "./pages/FrontrunBot";
+import SandwichBot from "./pages/SandwichBot";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -23,6 +26,9 @@ const App = () => (
           <Route path="/arbitrage" element={<ArbitrageBot />} />
           <Route path="/profiter-one" element={<ProfiterOneBot />} />
           <Route path="/profiter-two" element={<ProfiterTwoBot />} />
+          <Route path="/liquidation" element={<LiquidationBot />} />
+          <Route path="/frontrun" element={<FrontrunBot />} />
+          <Route path="/sandwich" element={<SandwichBot />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
