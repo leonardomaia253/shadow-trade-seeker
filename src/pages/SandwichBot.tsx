@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,6 +10,7 @@ import BotLogsViewer from '@/components/BotLogsViewer';
 import BotNavigation from '@/components/BotNavigation';
 import BotModuleStatus from '@/components/BotModuleStatus';
 import { TokenInfo } from '@/Arbitrum/utils/types';
+import { enhancedLogger } from '@/Arbitrum/utils/enhancedLogger';
 
 // Define the bot statistics type to match the database schema
 interface BotStatistics {
@@ -156,10 +156,13 @@ const SandwichBot = () => {
   }, [toast]);
 
   const handleStartBot = async () => {
-    if (isRunning) return;
-    setIsRunning(true);
-    
     try {
+      if (isRunning || isStarting) return;
+      
+      enhancedLogger.info("Starting sandwich bot");
+      setIsStarting(true);
+      
+      // Log bot start action
       await supabase.from('bot_logs').insert({
         level: 'info',
         message: 'User initiated bot start command',
@@ -169,22 +172,29 @@ const SandwichBot = () => {
         metadata: { action: 'start', user_initiated: true }
       });
       
-      const { data, error } = await supabase
-        .from('bot_statistics')
-        .update({ is_running: true })
-        .eq('bot_type', 'sandwich')
-        .select('*')
-        .single();
-
+      // Prepare configuration for the bot
+      const config = {
+        baseToken,
+        profitThreshold,
+        gasMultiplier: 1.1,
+        maxGasPrice: 50
+      };
+      
+      // Call the Edge Function to start the bot
+      const { data, error } = await supabase.functions.invoke('sandwich-bot-control', {
+        body: { action: 'start', config }
+      });
+      
       if (error) {
-        throw error;
+        throw new Error(`Failed to start bot: ${error.message}`);
       }
       
-      await supabase.functions.invoke('sandwich-bot-control', {
-        method: 'POST',
-        body: { action: 'start' }
-      });
-
+      // Update database status
+      await supabase
+        .from('bot_statistics')
+        .update({ is_running: true })
+        .eq('bot_type', 'sandwich');
+        
       toast({
         title: 'Bot Started',
         description: 'Sandwich bot is now running',
@@ -198,7 +208,9 @@ const SandwichBot = () => {
         source: 'system',
         metadata: { action: 'start', success: true }
       });
-    } catch (error: any) {
+      
+      setIsRunning(true);
+    } catch (error) {
       console.error('Error starting bot:', error);
       toast({
         title: 'Error Starting Bot',
@@ -214,14 +226,18 @@ const SandwichBot = () => {
         source: 'ui',
         metadata: { action: 'start', error: error.message }
       });
+    } finally {
+      setIsStarting(false);
     }
   };
 
   const handleStopBot = async () => {
-    if (!isRunning) return;
-    setIsRunning(false);
-    
     try {
+      if (!isRunning || isStopping) return;
+      
+      enhancedLogger.info("Stopping sandwich bot");
+      setIsStopping(true);
+      
       await supabase.from('bot_logs').insert({
         level: 'info',
         message: 'User initiated bot stop command',
@@ -231,21 +247,20 @@ const SandwichBot = () => {
         metadata: { action: 'stop', user_initiated: true }
       });
       
-      const { data, error } = await supabase
-        .from('bot_statistics')
-        .update({ is_running: false })
-        .eq('bot_type', 'sandwich')
-        .select('*')
-        .single();
+      // Call the Edge Function to stop the bot
+      const { data, error } = await supabase.functions.invoke('sandwich-bot-control', {
+        body: { action: 'stop' }
+      });
 
       if (error) {
         throw error;
       }
       
-      await supabase.functions.invoke('sandwich-bot-control', {
-        method: 'POST',
-        body: { action: 'stop' }
-      });
+      // Update database status
+      await supabase
+        .from('bot_statistics')
+        .update({ is_running: false })
+        .eq('bot_type', 'sandwich');
 
       toast({
         title: 'Bot Stopped',
@@ -260,7 +275,9 @@ const SandwichBot = () => {
         source: 'system',
         metadata: { action: 'stop', success: true }
       });
-    } catch (error: any) {
+      
+      setIsRunning(false);
+    } catch (error) {
       console.error('Error stopping bot:', error);
       toast({
         title: 'Error Stopping Bot',
@@ -276,11 +293,14 @@ const SandwichBot = () => {
         source: 'ui',
         metadata: { action: 'stop', error: error.message }
       });
+    } finally {
+      setIsStopping(false);
     }
   };
 
   const handleUpdateConfig = async (config: any) => {
     try {
+      // Log user action
       await supabase.from('bot_logs').insert({
         level: 'info',
         message: 'User updated bot configuration',
@@ -293,25 +313,35 @@ const SandwichBot = () => {
         }
       });
       
+      // Update local state
       setBaseToken(config.baseToken);
       setProfitThreshold(config.profitThreshold);
       
-      await supabase.functions.invoke('sandwich-bot-control', {
-        method: 'POST',
+      // Prepare full configuration object
+      const fullConfig = {
+        baseToken: config.baseToken,
+        profitThreshold: config.profitThreshold,
+        gasMultiplier: config.gasMultiplier || 1.1,
+        maxGasPrice: config.maxGasPrice || 50
+      };
+      
+      // Call the Edge Function to update the bot config
+      const { data, error } = await supabase.functions.invoke('sandwich-bot-control', {
         body: { 
-          action: 'update-config',
-          config: {
-            baseToken: config.baseToken,
-            profitThreshold: config.profitThreshold
-          }
+          action: 'updateConfig',
+          config: fullConfig
         }
       });
       
+      if (error) {
+        throw new Error(`Failed to update configuration: ${error.message}`);
+      }
+      
       toast({
         title: 'Configuration Updated',
-        description: 'Bot configuration has been updated',
+        description: 'Bot configuration has been updated successfully',
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error updating configuration:', error);
       toast({
         title: 'Error Updating Configuration',

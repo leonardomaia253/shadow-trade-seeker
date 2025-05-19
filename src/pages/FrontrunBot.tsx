@@ -11,6 +11,7 @@ import BotLogsViewer from '@/components/BotLogsViewer';
 import BotNavigation from '@/components/BotNavigation';
 import BotModuleStatus from '@/components/BotModuleStatus';
 import { TokenInfo } from '@/Arbitrum/utils/types';
+import { enhancedLogger } from '@/Arbitrum/utils/enhancedLogger';
 
 // Define the bot statistics type to match the database schema
 interface BotStatistics {
@@ -158,11 +159,12 @@ const FrontrunBot = () => {
   }, [toast]);
 
   const handleStartBot = async () => {
-    if (isRunning || isStarting) return;
-    
-    setIsStarting(true);
-    
     try {
+      if (isRunning || isStarting) return;
+      
+      enhancedLogger.info("Starting frontrun bot");
+      setIsStarting(true);
+      
       // Log bot start action
       await supabase.from('bot_logs').insert({
         level: 'info',
@@ -176,35 +178,60 @@ const FrontrunBot = () => {
         }
       });
       
-      // Update database status
-      await supabase.from('bot_statistics')
-        .update({ is_running: true, updated_at: new Date().toISOString() })
-        .eq('bot_type', 'frontrun');
+      // Prepare configuration for the bot
+      const config = {
+        baseToken,
+        profitThreshold,
+        gasMultiplier: 1.1,
+        maxGasPrice: 50
+      };
       
-      setIsRunning(true);
+      // Call the Edge Function to start the bot
+      const { data, error } = await supabase.functions.invoke('frontrun-bot-control', {
+        body: { action: 'start', config }
+      });
       
+      if (error) {
+        throw new Error(`Failed to start bot: ${error.message}`);
+      }
+      
+      // Log success and show toast notification
+      enhancedLogger.info(`Bot start request successful: ${JSON.stringify(data)}`);
       toast({
         title: "Bot Starting",
         description: "The Frontrun Bot is initializing...",
-        variant: "default"
       });
+      
+      setIsRunning(true);
     } catch (error) {
       console.error('Error starting bot:', error);
       toast({
         title: "Failed to start bot",
-        description: "An error occurred while starting the bot",
+        description: error.message || "An error occurred while starting the bot",
         variant: "destructive"
       });
+      
+      // Log error
+      await supabase.from('bot_logs').insert({
+        level: 'error',
+        message: `Failed to start bot: ${error.message}`,
+        category: 'exception',
+        bot_type: 'frontrun',
+        source: 'ui',
+        metadata: { action: 'start', error: error.message }
+      });
+    } finally {
       setIsStarting(false);
     }
   };
 
   const handleStopBot = async () => {
-    if (!isRunning || isStopping) return;
-    
-    setIsStopping(true);
-    
     try {
+      if (!isRunning || isStopping) return;
+      
+      enhancedLogger.info("Stopping frontrun bot");
+      setIsStopping(true);
+      
       // Log bot stop action
       await supabase.from('bot_logs').insert({
         level: 'info',
@@ -214,38 +241,72 @@ const FrontrunBot = () => {
         source: 'ui'
       });
       
-      // Update database status
-      await supabase.from('bot_statistics')
-        .update({ is_running: false, updated_at: new Date().toISOString() })
-        .eq('bot_type', 'frontrun');
+      // Call the Edge Function to stop the bot
+      const { data, error } = await supabase.functions.invoke('frontrun-bot-control', {
+        body: { action: 'stop' }
+      });
       
-      setIsRunning(false);
+      if (error) {
+        throw new Error(`Failed to stop bot: ${error.message}`);
+      }
       
+      // Log success and show toast notification
+      enhancedLogger.info(`Bot stop request successful: ${JSON.stringify(data)}`);
       toast({
         title: "Bot Stopping",
         description: "The Frontrun Bot is shutting down...",
-        variant: "default"
       });
+      
+      setIsRunning(false);
     } catch (error) {
       console.error('Error stopping bot:', error);
       toast({
         title: "Failed to stop bot",
-        description: "An error occurred while stopping the bot",
+        description: error.message || "An error occurred while stopping the bot",
         variant: "destructive"
       });
+      
+      // Log error
+      await supabase.from('bot_logs').insert({
+        level: 'error',
+        message: `Failed to stop bot: ${error.message}`,
+        category: 'exception',
+        bot_type: 'frontrun',
+        source: 'ui',
+        metadata: { action: 'stop', error: error.message }
+      });
+    } finally {
       setIsStopping(false);
     }
   };
 
   const handleUpdateConfig = async (config: any) => {
-    setBaseToken(config.baseToken);
-    setProfitThreshold(config.profitThreshold);
-    
-    // Log configuration changes
     try {
+      // Update local state
+      setBaseToken(config.baseToken);
+      setProfitThreshold(config.profitThreshold);
+      
+      // Prepare full configuration object
+      const fullConfig = {
+        baseToken: config.baseToken,
+        profitThreshold: config.profitThreshold,
+        gasMultiplier: config.gasMultiplier || 1.1,
+        maxGasPrice: config.maxGasPrice || 50
+      };
+      
+      // Call the Edge Function to update the bot config
+      const { data, error } = await supabase.functions.invoke('frontrun-bot-control', {
+        body: { action: 'updateConfig', config: fullConfig }
+      });
+      
+      if (error) {
+        throw new Error(`Failed to update configuration: ${error.message}`);
+      }
+      
+      // Log success and show toast notification
       await supabase.from('bot_logs').insert({
         level: 'info',
-        message: 'Bot configuration updated',
+        message: 'Bot configuration updated by user',
         category: 'configuration',
         bot_type: 'frontrun',
         source: 'user',
@@ -254,13 +315,14 @@ const FrontrunBot = () => {
       
       toast({
         title: "Configuration Updated",
-        description: "Bot configuration has been updated",
+        description: "Bot configuration has been updated successfully",
       });
     } catch (error) {
-      console.error('Error logging configuration update:', error);
+      console.error('Error updating config:', error);
       toast({
-        title: "Configuration Updated",
-        description: "Settings saved, but logging failed",
+        title: "Failed to update configuration",
+        description: error.message || "An error occurred while updating the configuration",
+        variant: "destructive"
       });
     }
   };
