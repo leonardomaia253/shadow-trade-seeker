@@ -1,16 +1,14 @@
-
-import { ethers } from "ethers";
+}import { ethers } from "ethers";
 import { TokenInfo } from "./types";
 import { provider } from "../config/provider";
+import { getTokenPriceInEth } from "./getTokenPriceInEth";
+
+
 
 interface GasInfo {
   gasPrice: ethers.BigNumber;
   ethPrice: ethers.BigNumber;
-}
 
-/**
- * Estimate gas cost for a transaction in token units
- */
 export async function getGasCostInToken({
   provider: providerInput,
   gasUnits,
@@ -21,19 +19,29 @@ export async function getGasCostInToken({
   token: TokenInfo;
 }): Promise<ethers.BigNumber> {
   const providerInstance = providerInput || provider;
-  
+
   try {
     const gasPrice = await providerInstance.getGasPrice();
     const gasEstimateWei = ethers.BigNumber.from(gasUnits).mul(gasPrice);
-    
-    // If token is ETH/WETH, return directly
+
+    // Se for WETH (ETH), retorna diretamente
     if (token.address.toLowerCase() === "0x82af49447d8a07e3bd95bd0d56f35241523fbab1") {
       return gasEstimateWei;
     }
-    
-    // TODO: For other tokens, convert from ETH to token price using oracle
-    // This is a placeholder implementation
-    return gasEstimateWei;
+
+    const tokenPriceInEth = await getTokenPriceInEth(token.address, providerInstance);
+
+    if (tokenPriceInEth.isZero()) {
+      console.warn(`Token price in ETH not found for ${token.symbol}, fallback to gasEstimateWei`);
+      return gasEstimateWei;
+    }
+
+    const tokenDecimals = token.decimals;
+    const result = gasEstimateWei
+      .mul(ethers.BigNumber.from(10).pow(tokenDecimals))
+      .div(tokenPriceInEth); // ETH/token -> token
+
+    return result;
   } catch (error) {
     console.error("Error calculating gas cost:", error);
     return ethers.BigNumber.from(0);
