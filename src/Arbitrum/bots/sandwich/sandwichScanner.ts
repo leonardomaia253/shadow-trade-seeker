@@ -1,3 +1,4 @@
+
 import { ethers, BigNumber } from "ethers";
 import dotenv from "dotenv";
 import { getDexList } from "../../utils/dexList";
@@ -75,26 +76,25 @@ provider.on("pending", async (txHash) => {
           });
 
     const calls = Array.isArray(orchestrateResult) ? orchestrateResult : [orchestrateResult];
-const profit = await simulateTokenProfit({
-  provider,
-  executorAddress,
-  tokenAddress: flashLoanToken,
-  calls,
-});
+    const profit = await simulateTokenProfit({
+      provider,
+      executorAddress,
+      tokenAddress: flashLoanToken,
+      calls,
+    });
 
-const MIN_PROFIT = ethers.utils.parseEther(process.env.MIN_PROFIT || "0.005");
+    const MIN_PROFIT = ethers.utils.parseEther(process.env.MIN_PROFIT || "0.005");
 
-// E usar:
-if (!profit || profit.lte(MIN_PROFIT)) {
-  log.warn(`⛔️ Lucro simulado insuficiente ou nulo: ${ethers.utils.formatEther(profit || 0)} ETH`);
-  return;
-}
+    if (!profit || profit.lte(MIN_PROFIT)) {
+      log.warn(`⛔️ Lucro simulado insuficiente ou nulo: ${ethers.utils.formatEther(profit || 0)} ETH`);
+      return;
+    }
 
-const SwapRemainingtx = await buildSwapToETHCall({
-  tokenIn: flashLoanToken,
-  amountIn: profit,
-  recipient: decoded.recipient,
-});
+    const SwapRemainingtx = await buildSwapToETHCall({
+      tokenIn: flashLoanToken,
+      amountIn: profit,
+      recipient: decoded.recipient,
+    });
 
     const wethBalanceRaw = await getWETHBalance({ provider });
     const wethBalance = ethers.BigNumber.isBigNumber(wethBalanceRaw)
