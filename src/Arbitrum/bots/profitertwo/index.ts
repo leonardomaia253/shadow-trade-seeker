@@ -22,7 +22,7 @@ import { validateTransaction, RateLimiter } from "../../utils/securityUtils";
 import { createContextLogger } from "../../utils/enhancedLogger";
 import { startHealthServer, updateBotMetrics, updateBotStatus, registerShutdownHandlers } from "../../utils/healthMonitor";
 import { createBotModuleLogger, checkDependencies } from "../../utils/botLogger";
-import { JsonRpcProvider } from 'ethers';
+import { providers } from "ethers";
 
 // Initialize Supabase client for database interaction
 const supabaseUrl = process.env.SUPABASE_URL!;
