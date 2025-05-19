@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import * as os from 'os'; // Import os module for system information
 import { enhancedLogger as baseLogger, createContextLogger } from '../../utils/enhancedLogger';
 import './frontrunwatcher';
 
@@ -24,13 +25,13 @@ log.info('Frontrun Bot started', {
 
 // Log system information
 try {
-  const { version, platform, arch, cpus } = process;
+  const { version, platform, arch } = process;
   log.debug('System information', {
     category: 'system',
     nodeVersion: version,
     platform,
     architecture: arch,
-    cpuCores: cpus().length,
+    cpuCores: os.cpus().length, // Use os.cpus() instead of process.cpus()
     memory: `${Math.round(process.memoryUsage().heapTotal / 1024 / 1024)} MB`
   });
 } catch (err) {
