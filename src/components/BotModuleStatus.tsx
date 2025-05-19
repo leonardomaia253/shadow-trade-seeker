@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { AlertCircle, CheckCircle, Clock, Activity, Info, HelpCircle, XCircle, Tool, AlertTriangle } from 'lucide-react';
+import { AlertCircle, CheckCircle, Clock, Activity, Info, HelpCircle, XCircle, Wrench, AlertTriangle } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 
 interface ModuleStatus {
@@ -77,15 +77,25 @@ const BotModuleStatus: React.FC<BotModuleStatusProps> = ({ botType, refreshInter
             // Only add if we haven't seen this module yet (since logs are ordered by timestamp desc)
             if (!moduleMap.has(moduleName)) {
               // Check for health status in metadata first, then fallback to derived status
-              const health = log.metadata?.health || getHealthFromLog(log);
+              const health = log.metadata && typeof log.metadata === 'object' && 'health' in log.metadata 
+                ? log.metadata.health as ModuleStatus['health']
+                : getHealthFromLog(log);
+              
+              const status = log.metadata && typeof log.metadata === 'object' && 'status' in log.metadata
+                ? log.metadata.status as ModuleStatus['status']
+                : getStatusFromLog(log);
+                
+              const silentErrors = log.metadata && typeof log.metadata === 'object' && 'silent_errors' in log.metadata
+                ? log.metadata.silent_errors as Array<{message: string, timestamp: string, code?: string}>
+                : [];
               
               moduleMap.set(moduleName, {
                 name: moduleName,
-                status: log.metadata?.status || getStatusFromLog(log),
+                status: status,
                 health: health,
                 lastChecked: new Date(log.timestamp),
                 details: log.metadata,
-                silentErrors: log.metadata?.silent_errors || [],
+                silentErrors: silentErrors,
                 needsAttention: health === 'needs_fix'
               });
             }
@@ -144,18 +154,28 @@ const BotModuleStatus: React.FC<BotModuleStatusProps> = ({ botType, refreshInter
             const moduleIndex = prev.findIndex(m => m.name === moduleName);
             
             // Check for health status in metadata first, then fallback to derived status
-            const health = log.metadata?.health || getHealthFromLog(log);
+            const health = log.metadata && typeof log.metadata === 'object' && 'health' in log.metadata
+              ? log.metadata.health as ModuleStatus['health']
+              : getHealthFromLog(log);
+              
+            const status = log.metadata && typeof log.metadata === 'object' && 'status' in log.metadata
+              ? log.metadata.status as ModuleStatus['status']
+              : getStatusFromLog(log);
+              
+            const silentErrors = log.metadata && typeof log.metadata === 'object' && 'silent_errors' in log.metadata
+              ? log.metadata.silent_errors as Array<{message: string, timestamp: string, code?: string}>
+              : [];
             
             if (moduleIndex !== -1) {
               // Update existing module
               const updated = [...prev];
               updated[moduleIndex] = {
                 ...updated[moduleIndex],
-                status: log.metadata?.status || getStatusFromLog(log),
+                status: status,
                 health: health,
                 lastChecked: new Date(log.timestamp),
                 details: log.metadata,
-                silentErrors: log.metadata?.silent_errors || [],
+                silentErrors: silentErrors,
                 needsAttention: health === 'needs_fix'
               };
               return updated;
@@ -165,11 +185,11 @@ const BotModuleStatus: React.FC<BotModuleStatusProps> = ({ botType, refreshInter
                 ...prev,
                 {
                   name: moduleName,
-                  status: log.metadata?.status || getStatusFromLog(log),
+                  status: status,
                   health: health,
                   lastChecked: new Date(log.timestamp),
                   details: log.metadata,
-                  silentErrors: log.metadata?.silent_errors || [],
+                  silentErrors: silentErrors,
                   needsAttention: health === 'needs_fix'
                 }
               ];
@@ -207,8 +227,11 @@ const BotModuleStatus: React.FC<BotModuleStatusProps> = ({ botType, refreshInter
     if (!log) return 'inactive';
     
     // Check for silent errors in metadata that would require fixing
-    if (log.metadata?.silent_errors && log.metadata.silent_errors.length > 0) {
-      return 'needs_fix';
+    if (log.metadata && typeof log.metadata === 'object' && 'silent_errors' in log.metadata) {
+      const silentErrors = log.metadata.silent_errors;
+      if (Array.isArray(silentErrors) && silentErrors.length > 0) {
+        return 'needs_fix';
+      }
     }
     
     if (log.level === 'error' || log.level === 'critical') {
@@ -234,7 +257,7 @@ const BotModuleStatus: React.FC<BotModuleStatusProps> = ({ botType, refreshInter
       case 'warning':
         return <AlertCircle className="h-5 w-5 text-yellow-500" />;
       case 'needs_fix':
-        return <Tool className="h-5 w-5 text-orange-500" />;
+        return <Wrench className="h-5 w-5 text-orange-500" />;
       default:
         return <HelpCircle className="h-5 w-5 text-gray-500" />;
     }
@@ -375,7 +398,7 @@ const BotModuleStatus: React.FC<BotModuleStatusProps> = ({ botType, refreshInter
                   {module.needsAttention && (
                     <div className="mt-2">
                       <span className="text-xs text-orange-400 flex items-center">
-                        <Tool className="h-3 w-3 mr-1" /> Needs attention
+                        <Wrench className="h-3 w-3 mr-1" /> Needs attention
                       </span>
                     </div>
                   )}
