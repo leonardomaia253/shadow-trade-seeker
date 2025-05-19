@@ -180,7 +180,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: false, 
-        message: error.message || 'An error occurred'
+        message: error?.message || 'An error occurred'
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
