@@ -73,10 +73,11 @@ export async function buildLiquidationBundle({
   const liquidationCallRes = await getLiquidationCallData({
     protocol: protocol,
     params: {
-      fromToken: debtAsset,
-      toToken: collateralAsset,
+      collateralAsset,
+      debtAsset,
+      user: userToLiquidate,
       amount: ethers.BigNumber.from(amountToRepay),
-      slippage: 0.01
+      receiveAToken: false
     }
   });
 
@@ -92,12 +93,23 @@ export async function buildLiquidationBundle({
   };
 
   // 2. Swap collateral received -> flashLoanToken
-  const swapCall = await buildSwapTransaction[defaultDex]({
+  const swapCallData = await buildSwapTransaction[defaultDex]({
     tokenIn: collateralAsset,
     tokenOut: flashLoanToken,
     amountIn: ethers.BigNumber.from(flashLoanAmount).div(2), // Use half as estimation
     dex: defaultDex
-  }, "0x0");
+  }, dexRouterAddress);
+
+  // Create proper CallData format for swap
+  const swapCall: CallData = {
+    to: dexRouterAddress,
+    data: swapCallData.data,
+    dex: defaultDex,
+    value: ethers.BigNumber.from(0),
+    requiresApproval: true,
+    approvalToken: collateralAsset,
+    approvalAmount: ethers.BigNumber.from(flashLoanAmount).div(2)
+  };
 
   // 3. Pay miner with profit token
   const minerCallRaw = await encodePayMiner(
@@ -129,12 +141,12 @@ export async function buildLiquidationBundle({
 
   // Convert orchestrate result to CallData format
   return {
-    to: orchestrateResult.target || "",
+    to: orchestrateResult.to || "",
     data: String(orchestrateResult.data || ""),
     dex: defaultDex,
     value: ethers.BigNumber.from(orchestrateResult.value || 0),
-    requiresApproval: orchestrateResult.requiresApproval || false,
-    approvalToken: orchestrateResult.approvalToken || ethers.constants.AddressZero,
-    approvalAmount: ethers.BigNumber.from(orchestrateResult.approvalAmount || 0)
+    requiresApproval: false, // The orchestrate contract handles approvals internally
+    approvalToken: "",
+    approvalAmount: ethers.BigNumber.from(0)
   };
 }
