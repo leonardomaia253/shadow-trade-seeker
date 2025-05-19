@@ -8,19 +8,60 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Enhanced logging function
+function logEvent(supabase, level, message, category, botType, source, metadata = {}) {
+  return supabase.from('bot_logs').insert({
+    level,
+    message,
+    category,
+    bot_type: botType,
+    source,
+    timestamp: new Date().toISOString(),
+    metadata: {
+      ...metadata,
+      environment: Deno.env.get('ENVIRONMENT') || 'production',
+      serverVersion: '1.0.0'
+    }
+  });
+}
+
+// Function to report module status
+async function reportModuleStatus(supabase, module, status, details = {}) {
+  // Check if there are any silent errors to report
+  const silentErrors = details.silent_errors || [];
+  const needsFix = silentErrors.length > 0 || status === 'error';
+  
+  return await supabase.from('bot_logs').insert({
+    level: status === 'error' ? 'error' : status === 'warning' ? 'warn' : 'info',
+    message: `${module} status: ${status}`,
+    category: 'health_check',
+    bot_type: 'liquidation',
+    source: module,
+    timestamp: new Date().toISOString(),
+    metadata: {
+      status, 
+      health: needsFix ? 'needs_fix' : status,
+      details,
+      silent_errors: silentErrors,
+      needsAttention: needsFix
+    }
+  });
+}
+
 // Function to start the liquidation bot
 async function startBot(supabase, config) {
   const { protocol, healthFactorThreshold } = config;
 
   // Log bot start event
-  await supabase.from('bot_logs').insert({
-    level: 'info',
-    message: `Liquidation bot started targeting ${protocol || 'all'} protocols with health factor threshold ${healthFactorThreshold || 'default'}`,
-    category: 'bot_state',
-    bot_type: 'liquidation',
-    source: 'system',
-    metadata: { protocol, healthFactorThreshold }
-  });
+  await logEvent(
+    supabase,
+    'info',
+    `Liquidation bot started targeting ${protocol || 'all'} protocols with health factor threshold ${healthFactorThreshold || 'default'}`,
+    'bot_state',
+    'liquidation',
+    'system',
+    { protocol, healthFactorThreshold }
+  );
   
   // Update bot status in database to trigger the bot to start
   await supabase.from('bot_statistics').update({ 
@@ -28,25 +69,55 @@ async function startBot(supabase, config) {
     updated_at: new Date().toISOString() 
   }).eq('bot_type', 'liquidation');
   
-  return { success: true, message: "Bot started successfully" };
+  // Initialize module statuses
+  const modules = ['scanner', 'builder', 'executor', 'watcher'];
+  for (const module of modules) {
+    await reportModuleStatus(
+      supabase, 
+      module, 
+      'ok', 
+      { details: 'Module initialized by API' }
+    );
+  }
+  
+  return { 
+    success: true, 
+    message: "Bot started successfully",
+    moduleStatus: Object.fromEntries(modules.map(m => [m, {
+      status: 'ok',
+      lastChecked: new Date().toISOString()
+    }]))
+  };
 }
 
 // Function to stop the liquidation bot
 async function stopBot(supabase) {
   // Log bot stop event
-  await supabase.from('bot_logs').insert({
-    level: 'info',
-    message: 'Liquidation bot stopped',
-    category: 'bot_state',
-    bot_type: 'liquidation',
-    source: 'system'
-  });
+  await logEvent(
+    supabase,
+    'info',
+    'Liquidation bot stopped',
+    'bot_state',
+    'liquidation',
+    'system'
+  );
   
   // Update bot status in database to trigger the bot to stop
   await supabase.from('bot_statistics').update({ 
     is_running: false,
     updated_at: new Date().toISOString() 
   }).eq('bot_type', 'liquidation');
+  
+  // Update module statuses to inactive
+  const modules = ['scanner', 'builder', 'executor', 'watcher'];
+  for (const module of modules) {
+    await reportModuleStatus(
+      supabase, 
+      module, 
+      'inactive', 
+      { details: 'Module stopped by user' }
+    );
+  }
   
   return { success: true, message: "Bot stopped successfully" };
 }
@@ -56,19 +127,20 @@ async function updateBotConfig(supabase, config) {
   const { protocol, healthFactorThreshold, gasMultiplier, maxGasPrice } = config;
   
   // Log configuration update
-  await supabase.from('bot_logs').insert({
-    level: 'info',
-    message: `Bot configuration updated: targeting ${protocol || 'all'} protocols, health factor threshold=${healthFactorThreshold || 'default'}`,
-    category: 'configuration',
-    bot_type: 'liquidation',
-    source: 'system',
-    metadata: { 
+  await logEvent(
+    supabase,
+    'info',
+    `Bot configuration updated: targeting ${protocol || 'all'} protocols, health factor threshold=${healthFactorThreshold || 'default'}`,
+    'configuration',
+    'liquidation',
+    'system',
+    { 
       protocol, 
       healthFactorThreshold,
       gasMultiplier,
       maxGasPrice
     }
-  });
+  );
   
   return { success: true, message: "Configuration updated successfully" };
 }
@@ -122,13 +194,92 @@ async function getBotStatus(supabase) {
     throw new Error(`Failed to fetch logs: ${logsError.message}`);
   }
   
+  // Get module health status
+  const { data: healthLogs, error: healthError } = await supabase
+    .from('bot_logs')
+    .select('*')
+    .eq('bot_type', 'liquidation')
+    .eq('category', 'health_check')
+    .order('timestamp', { ascending: false });
+    
+  // Process module status from health check logs
+  let moduleStatus = {};
+  if (healthLogs && healthLogs.length > 0) {
+    const seenModules = new Set();
+    healthLogs.forEach(log => {
+      const module = log.source;
+      if (module && !seenModules.has(module)) {
+        seenModules.add(module);
+        
+        const silentErrors = log.metadata?.silent_errors || [];
+        const needsFix = silentErrors.length > 0 || log.metadata?.status === 'error';
+        
+        moduleStatus[module] = {
+          status: log.metadata?.status || 'inactive',
+          health: needsFix ? 'needs_fix' : (log.metadata?.health || log.metadata?.status || 'inactive'),
+          lastChecked: log.timestamp,
+          details: log.metadata,
+          silentErrors: silentErrors,
+          needsAttention: needsFix
+        };
+      }
+    });
+  }
+  
+  // Ensure all standard modules are represented
+  const standardModules = ['scanner', 'builder', 'executor', 'watcher'];
+  standardModules.forEach(module => {
+    if (!moduleStatus[module]) {
+      moduleStatus[module] = {
+        status: 'inactive',
+        health: 'inactive',
+        lastChecked: undefined,
+        details: {},
+        silentErrors: [],
+        needsAttention: false
+      };
+    }
+  });
+  
   return {
     success: true,
     status: statistics?.is_running ? "running" : "stopped",
     statistics,
     transactions,
     monitoredUsers,
-    logs
+    logs,
+    moduleStatus
+  };
+}
+
+// Test function to simulate module errors (for development/testing)
+async function simulateIssue(supabase, options) {
+  const { module, status, errorCount } = options;
+  
+  const silentErrors = [];
+  if (errorCount && errorCount > 0) {
+    for (let i = 0; i < errorCount; i++) {
+      silentErrors.push({
+        message: `Mock error ${i+1} in ${module}`,
+        timestamp: new Date().toISOString(),
+        code: `ERR-${100 + i}`
+      });
+    }
+  }
+  
+  await reportModuleStatus(
+    supabase, 
+    module, 
+    status, 
+    { 
+      details: `Test ${status} status with ${silentErrors.length} silent errors`,
+      silent_errors: silentErrors
+    }
+  );
+  
+  return { 
+    success: true, 
+    message: `Simulated ${status} status for ${module} with ${silentErrors.length} silent errors` 
   };
 }
 
@@ -145,7 +296,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
     
     // Get request body
-    const { action, config } = await req.json();
+    const { action, config, testOptions } = await req.json();
     
     let result;
     
@@ -162,6 +313,10 @@ serve(async (req) => {
         break;
       case 'status':
         result = await getBotStatus(supabase);
+        break;
+      case 'test':
+        // This action is only for development/testing
+        result = await simulateIssue(supabase, testOptions);
         break;
       default:
         throw new Error(`Unknown action: ${action}`);

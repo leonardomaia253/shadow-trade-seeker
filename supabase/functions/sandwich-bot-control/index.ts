@@ -8,18 +8,59 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Enhanced logging function
+function logEvent(supabase, level, message, category, botType, source, metadata = {}) {
+  return supabase.from('bot_logs').insert({
+    level,
+    message,
+    category,
+    bot_type: botType,
+    source,
+    timestamp: new Date().toISOString(),
+    metadata: {
+      ...metadata,
+      environment: Deno.env.get('ENVIRONMENT') || 'production',
+      serverVersion: '1.0.0'
+    }
+  });
+}
+
+// Function to report module status
+async function reportModuleStatus(supabase, module, status, details = {}) {
+  // Check if there are any silent errors to report
+  const silentErrors = details.silent_errors || [];
+  const needsFix = silentErrors.length > 0 || status === 'error';
+  
+  return await supabase.from('bot_logs').insert({
+    level: status === 'error' ? 'error' : status === 'warning' ? 'warn' : 'info',
+    message: `${module} status: ${status}`,
+    category: 'health_check',
+    bot_type: 'sandwich',
+    source: module,
+    timestamp: new Date().toISOString(),
+    metadata: {
+      status, 
+      health: needsFix ? 'needs_fix' : status,
+      details,
+      silent_errors: silentErrors,
+      needsAttention: needsFix
+    }
+  });
+}
+
 // Function to start the sandwich bot
 async function startBot(supabase, config) {
   const { minProfitThreshold, minSlippageThreshold, targetDEXs } = config;
 
   // Log bot start event with more detailed information
-  await supabase.from('bot_logs').insert({
-    level: 'info',
-    message: `Sandwich bot started with ${minProfitThreshold} ETH profit threshold and ${minSlippageThreshold}% slippage threshold`,
-    category: 'bot_state',
-    bot_type: 'sandwich',
-    source: 'system',
-    metadata: { 
+  await logEvent(
+    supabase,
+    'info',
+    `Sandwich bot started with ${minProfitThreshold} ETH profit threshold and ${minSlippageThreshold}% slippage threshold`,
+    'bot_state',
+    'sandwich',
+    'system',
+    { 
       minProfitThreshold, 
       minSlippageThreshold, 
       targetDEXs,
@@ -28,47 +69,18 @@ async function startBot(supabase, config) {
       timestamp: new Date().toISOString(),
       environment: Deno.env.get('ENVIRONMENT') || 'production'
     }
-  });
+  );
   
-  // Log scanner module initialization
-  await supabase.from('bot_logs').insert({
-    level: 'info',
-    message: 'Sandwich bot scanner module initialized',
-    category: 'initialization',
-    bot_type: 'sandwich',
-    source: 'scanner',
-    metadata: {
-      status: 'active',
-      config: { 
-        minProfitThreshold,
-        minSlippageThreshold
-      }
-    }
-  });
-  
-  // Log builder module initialization
-  await supabase.from('bot_logs').insert({
-    level: 'info',
-    message: 'Sandwich bot builder module initialized',
-    category: 'initialization',
-    bot_type: 'sandwich',
-    source: 'builder',
-    metadata: {
-      status: 'active'
-    }
-  });
-  
-  // Log executor module initialization
-  await supabase.from('bot_logs').insert({
-    level: 'info',
-    message: 'Sandwich bot executor module initialized',
-    category: 'initialization',
-    bot_type: 'sandwich',
-    source: 'executor',
-    metadata: {
-      status: 'active'
-    }
-  });
+  // Initialize module statuses
+  const modules = ['scanner', 'builder', 'executor', 'watcher'];
+  for (const module of modules) {
+    await reportModuleStatus(
+      supabase, 
+      module, 
+      'ok', 
+      { details: 'Module initialized by API' }
+    );
+  }
   
   // Update bot status in database to trigger the bot to start
   await supabase.from('bot_statistics').update({ 
@@ -80,11 +92,10 @@ async function startBot(supabase, config) {
     success: true, 
     message: "Bot started successfully",
     details: {
-      moduleStatus: {
-        scanner: "active",
-        builder: "active",
-        executor: "active"
-      },
+      moduleStatus: Object.fromEntries(modules.map(m => [m, {
+        status: 'ok',
+        lastChecked: new Date().toISOString()
+      }])),
       startTime: new Date().toISOString(),
       config: {
         minProfitThreshold,
@@ -98,44 +109,31 @@ async function startBot(supabase, config) {
 // Function to stop the sandwich bot
 async function stopBot(supabase) {
   // Log bot stop event with detailed information
-  await supabase.from('bot_logs').insert({
-    level: 'info',
-    message: 'Sandwich bot stopped',
-    category: 'bot_state',
-    bot_type: 'sandwich',
-    source: 'system',
-    metadata: {
+  await logEvent(
+    supabase,
+    'info',
+    'Sandwich bot stopped',
+    'bot_state',
+    'sandwich',
+    'system',
+    {
       action: 'stop',
       initiatedBy: 'user',
       timestamp: new Date().toISOString(),
       reason: 'user_requested'
     }
-  });
+  );
   
-  // Log modules stopping
-  await supabase.from('bot_logs').insert({
-    level: 'info',
-    message: 'Sandwich bot scanner module stopped',
-    category: 'shutdown',
-    bot_type: 'sandwich',
-    source: 'scanner'
-  });
-  
-  await supabase.from('bot_logs').insert({
-    level: 'info',
-    message: 'Sandwich bot builder module stopped',
-    category: 'shutdown',
-    bot_type: 'sandwich',
-    source: 'builder'
-  });
-  
-  await supabase.from('bot_logs').insert({
-    level: 'info',
-    message: 'Sandwich bot executor module stopped',
-    category: 'shutdown',
-    bot_type: 'sandwich',
-    source: 'executor'
-  });
+  // Update module statuses to inactive
+  const modules = ['scanner', 'builder', 'executor', 'watcher'];
+  for (const module of modules) {
+    await reportModuleStatus(
+      supabase, 
+      module, 
+      'inactive', 
+      { details: 'Module stopped by user' }
+    );
+  }
   
   // Update bot status in database to trigger the bot to stop
   await supabase.from('bot_statistics').update({ 
@@ -162,13 +160,14 @@ async function updateBotConfig(supabase, config) {
   const { minProfitThreshold, minSlippageThreshold, targetDEXs, gasMultiplier, maxGasPrice } = config;
   
   // Log configuration update with more detailed information
-  await supabase.from('bot_logs').insert({
-    level: 'info',
-    message: `Sandwich bot configuration updated: min profit=${minProfitThreshold} ETH, min slippage=${minSlippageThreshold}%`,
-    category: 'configuration',
-    bot_type: 'sandwich',
-    source: 'system',
-    metadata: { 
+  await logEvent(
+    supabase,
+    'info',
+    `Sandwich bot configuration updated: min profit=${minProfitThreshold} ETH, min slippage=${minSlippageThreshold}%`,
+    'configuration',
+    'sandwich',
+    'system',
+    { 
       minProfitThreshold, 
       minSlippageThreshold,
       targetDEXs,
@@ -178,22 +177,21 @@ async function updateBotConfig(supabase, config) {
       changedBy: "user",
       timestamp: new Date().toISOString()
     }
-  });
+  );
   
   // Log scanner module reconfiguration
-  await supabase.from('bot_logs').insert({
-    level: 'info',
-    message: 'Sandwich bot scanner module reconfigured',
-    category: 'configuration',
-    bot_type: 'sandwich',
-    source: 'scanner',
-    metadata: {
+  await reportModuleStatus(
+    supabase, 
+    'scanner',
+    'ok',
+    {
+      details: 'Module reconfigured',
       newThresholds: {
         profit: minProfitThreshold,
         slippage: minSlippageThreshold
       }
     }
-  });
+  );
   
   return { 
     success: true, 
@@ -254,39 +252,60 @@ async function getBotStatus(supabase) {
     .select('*')
     .eq('bot_type', 'sandwich')
     .eq('category', 'health_check')
-    .order('timestamp', { ascending: false })
-    .limit(3);
-  
-  // Parse module health from logs or set default values
-  const moduleHealth = {
-    scanner: { status: statistics?.is_running ? "active" : "inactive", lastChecked: new Date().toISOString() },
-    builder: { status: statistics?.is_running ? "active" : "inactive", lastChecked: new Date().toISOString() },
-    executor: { status: statistics?.is_running ? "active" : "inactive", lastChecked: new Date().toISOString() }
-  };
-  
+    .order('timestamp', { ascending: false });
+    
+  // Process module status from health check logs
+  let moduleStatus = {};
   if (healthLogs && healthLogs.length > 0) {
+    const seenModules = new Set();
     healthLogs.forEach(log => {
-      if (log.source && moduleHealth[log.source]) {
-        moduleHealth[log.source] = {
-          status: log.metadata?.status || moduleHealth[log.source].status,
-          lastChecked: log.timestamp
+      const module = log.source;
+      if (module && !seenModules.has(module)) {
+        seenModules.add(module);
+        
+        const silentErrors = log.metadata?.silent_errors || [];
+        const needsFix = silentErrors.length > 0 || log.metadata?.status === 'error';
+        
+        moduleStatus[module] = {
+          status: log.metadata?.status || 'inactive',
+          health: needsFix ? 'needs_fix' : (log.metadata?.health || log.metadata?.status || 'inactive'),
+          lastChecked: log.timestamp,
+          details: log.metadata,
+          silentErrors: silentErrors,
+          needsAttention: needsFix
         };
       }
     });
   }
   
+  // Ensure all standard modules are represented
+  const standardModules = ['scanner', 'builder', 'executor', 'watcher'];
+  standardModules.forEach(module => {
+    if (!moduleStatus[module]) {
+      moduleStatus[module] = {
+        status: 'inactive',
+        health: 'inactive',
+        lastChecked: undefined,
+        details: {},
+        silentErrors: [],
+        needsAttention: false
+      };
+    }
+  });
+  
   // Log this status query
-  await supabase.from('bot_logs').insert({
-    level: 'debug',
-    message: 'Bot status requested',
-    category: 'api',
-    bot_type: 'sandwich',
-    source: 'system',
-    metadata: {
+  await logEvent(
+    supabase,
+    'debug',
+    'Bot status requested',
+    'api',
+    'sandwich',
+    'system',
+    {
       isRunning: statistics?.is_running,
       timestamp: new Date().toISOString()
     }
-  });
+  );
   
   return {
     success: true,
@@ -294,8 +313,39 @@ async function getBotStatus(supabase) {
     statistics,
     transactions,
     logs,
-    modules: moduleHealth,
+    modules: moduleStatus,
     lastChecked: new Date().toISOString()
+  };
+}
+
+// Test function to simulate module errors (for development/testing)
+async function simulateIssue(supabase, options) {
+  const { module, status, errorCount } = options;
+  
+  const silentErrors = [];
+  if (errorCount && errorCount > 0) {
+    for (let i = 0; i < errorCount; i++) {
+      silentErrors.push({
+        message: `Mock error ${i+1} in ${module}`,
+        timestamp: new Date().toISOString(),
+        code: `ERR-${100 + i}`
+      });
+    }
+  }
+  
+  await reportModuleStatus(
+    supabase, 
+    module, 
+    status, 
+    { 
+      details: `Test ${status} status with ${silentErrors.length} silent errors`,
+      silent_errors: silentErrors
+    }
+  );
+  
+  return { 
+    success: true, 
+    message: `Simulated ${status} status for ${module} with ${silentErrors.length} silent errors` 
   };
 }
 
@@ -312,7 +362,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
     
     // Get request body
-    const { action, config } = await req.json();
+    const { action, config, testOptions } = await req.json();
     
     let result;
     
@@ -329,6 +379,10 @@ serve(async (req) => {
         break;
       case 'status':
         result = await getBotStatus(supabase);
+        break;
+      case 'test':
+        // This action is only for development/testing
+        result = await simulateIssue(supabase, testOptions);
         break;
       default:
         throw new Error(`Unknown action: ${action}`);

@@ -77,17 +77,36 @@ const BotModuleStatus: React.FC<BotModuleStatusProps> = ({ botType, refreshInter
             // Only add if we haven't seen this module yet (since logs are ordered by timestamp desc)
             if (!moduleMap.has(moduleName)) {
               // Check for health status in metadata first, then fallback to derived status
-              const health = log.metadata && typeof log.metadata === 'object' && 'health' in log.metadata 
-                ? log.metadata.health as ModuleStatus['health']
-                : getHealthFromLog(log);
+              const metadata = log.metadata || {}; 
+              let health = 'inactive';
+              let status = 'inactive';
+              let silentErrors: Array<{message: string, timestamp: string, code?: string}> = [];
               
-              const status = log.metadata && typeof log.metadata === 'object' && 'status' in log.metadata
-                ? log.metadata.status as ModuleStatus['status']
-                : getStatusFromLog(log);
+              // Type check and access metadata properties safely
+              if (typeof metadata === 'object' && metadata !== null) {
+                if ('health' in metadata) {
+                  health = metadata.health as ModuleStatus['health'];
+                } else {
+                  health = getHealthFromLog(log);
+                }
                 
-              const silentErrors = log.metadata && typeof log.metadata === 'object' && 'silent_errors' in log.metadata
-                ? log.metadata.silent_errors as Array<{message: string, timestamp: string, code?: string}>
-                : [];
+                if ('status' in metadata) {
+                  status = metadata.status as ModuleStatus['status'];
+                } else {
+                  status = getStatusFromLog(log);
+                }
+                
+                if ('silent_errors' in metadata && Array.isArray(metadata.silent_errors)) {
+                  silentErrors = metadata.silent_errors;
+                }
+              } else {
+                // If metadata is not an object, use derived values
+                health = getHealthFromLog(log);
+                status = getStatusFromLog(log);
+              }
+              
+              const needsAttention = health === 'needs_fix' || 
+                                    (silentErrors && silentErrors.length > 0);
               
               moduleMap.set(moduleName, {
                 name: moduleName,
@@ -96,7 +115,7 @@ const BotModuleStatus: React.FC<BotModuleStatusProps> = ({ botType, refreshInter
                 lastChecked: new Date(log.timestamp),
                 details: log.metadata,
                 silentErrors: silentErrors,
-                needsAttention: health === 'needs_fix'
+                needsAttention: needsAttention
               });
             }
           });
@@ -154,17 +173,36 @@ const BotModuleStatus: React.FC<BotModuleStatusProps> = ({ botType, refreshInter
             const moduleIndex = prev.findIndex(m => m.name === moduleName);
             
             // Check for health status in metadata first, then fallback to derived status
-            const health = log.metadata && typeof log.metadata === 'object' && 'health' in log.metadata
-              ? log.metadata.health as ModuleStatus['health']
-              : getHealthFromLog(log);
+            const metadata = log.metadata || {}; 
+            let health = 'inactive';
+            let status = 'inactive';
+            let silentErrors: Array<{message: string, timestamp: string, code?: string}> = [];
+            
+            // Type check and access metadata properties safely
+            if (typeof metadata === 'object' && metadata !== null) {
+              if ('health' in metadata) {
+                health = metadata.health as ModuleStatus['health'];
+              } else {
+                health = getHealthFromLog(log);
+              }
               
-            const status = log.metadata && typeof log.metadata === 'object' && 'status' in log.metadata
-              ? log.metadata.status as ModuleStatus['status']
-              : getStatusFromLog(log);
+              if ('status' in metadata) {
+                status = metadata.status as ModuleStatus['status'];
+              } else {
+                status = getStatusFromLog(log);
+              }
               
-            const silentErrors = log.metadata && typeof log.metadata === 'object' && 'silent_errors' in log.metadata
-              ? log.metadata.silent_errors as Array<{message: string, timestamp: string, code?: string}>
-              : [];
+              if ('silent_errors' in metadata && Array.isArray(metadata.silent_errors)) {
+                silentErrors = metadata.silent_errors;
+              }
+            } else {
+              // If metadata is not an object, use derived values
+              health = getHealthFromLog(log);
+              status = getStatusFromLog(log);
+            }
+            
+            const needsAttention = health === 'needs_fix' || 
+                                  (silentErrors && silentErrors.length > 0);
             
             if (moduleIndex !== -1) {
               // Update existing module
@@ -176,7 +214,7 @@ const BotModuleStatus: React.FC<BotModuleStatusProps> = ({ botType, refreshInter
                 lastChecked: new Date(log.timestamp),
                 details: log.metadata,
                 silentErrors: silentErrors,
-                needsAttention: health === 'needs_fix'
+                needsAttention: needsAttention
               };
               return updated;
             } else {
@@ -190,7 +228,7 @@ const BotModuleStatus: React.FC<BotModuleStatusProps> = ({ botType, refreshInter
                   lastChecked: new Date(log.timestamp),
                   details: log.metadata,
                   silentErrors: silentErrors,
-                  needsAttention: health === 'needs_fix'
+                  needsAttention: needsAttention
                 }
               ];
             }
@@ -313,6 +351,24 @@ const BotModuleStatus: React.FC<BotModuleStatusProps> = ({ botType, refreshInter
     }
   };
 
+  // Function to simulate a test issue
+  const simulateIssue = async (moduleName: string, status: 'ok' | 'error' | 'warning', errorCount: number = 0) => {
+    try {
+      await supabase.functions.invoke(`${botType}-bot-control`, {
+        body: { 
+          action: 'test', 
+          testOptions: {
+            module: moduleName,
+            status: status,
+            errorCount: errorCount
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Error simulating issue:', error);
+    }
+  };
+
   return (
     <Card className="bg-crypto-card border-crypto-border shadow-glow-sm">
       <CardHeader className="pb-2">
@@ -389,6 +445,38 @@ const BotModuleStatus: React.FC<BotModuleStatusProps> = ({ botType, refreshInter
                             <pre className="text-xs mt-2 max-h-32 overflow-y-auto whitespace-pre-wrap">
                               {JSON.stringify(module.details, null, 2)}
                             </pre>
+                          )}
+                          
+                          {process.env.NODE_ENV === 'development' && (
+                            <div className="mt-3 pt-2 border-t border-gray-700">
+                              <p className="text-xs text-gray-400 mb-1">Test Controls (Dev Only)</p>
+                              <div className="flex gap-1">
+                                <button 
+                                  onClick={() => simulateIssue(module.name, 'ok')}
+                                  className="text-xs bg-green-700 px-2 py-1 rounded hover:bg-green-600"
+                                >
+                                  OK
+                                </button>
+                                <button 
+                                  onClick={() => simulateIssue(module.name, 'warning')}
+                                  className="text-xs bg-yellow-700 px-2 py-1 rounded hover:bg-yellow-600"
+                                >
+                                  Warning
+                                </button>
+                                <button 
+                                  onClick={() => simulateIssue(module.name, 'error')}
+                                  className="text-xs bg-red-700 px-2 py-1 rounded hover:bg-red-600"
+                                >
+                                  Error
+                                </button>
+                                <button 
+                                  onClick={() => simulateIssue(module.name, 'warning', 2)}
+                                  className="text-xs bg-orange-700 px-2 py-1 rounded hover:bg-orange-600"
+                                >
+                                  +Errors
+                                </button>
+                              </div>
+                            </div>
                           )}
                         </div>
                       </TooltipContent>

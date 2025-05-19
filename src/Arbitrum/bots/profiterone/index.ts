@@ -38,6 +38,32 @@ let currentBaseToken: TokenInfo = {
 };
 let currentProfitThreshold = MIN_PROFIT_ETH;
 
+// Function to report module health status
+async function reportModuleStatus(module: string, status: 'ok' | 'error' | 'warning' | 'inactive', details: any = {}) {
+  try {
+    const silentErrors = details.silent_errors || [];
+    const needsFix = silentErrors.length > 0 || status === 'error';
+    
+    await supabase.from('bot_logs').insert({
+      level: status === 'error' ? 'error' : status === 'warning' ? 'warn' : 'info',
+      message: `${module} status: ${status}`,
+      category: 'health_check',
+      bot_type: 'profiter-one',
+      source: module,
+      timestamp: new Date().toISOString(),
+      metadata: {
+        status,
+        health: needsFix ? 'needs_fix' : status,
+        details,
+        silent_errors: silentErrors,
+        needsAttention: needsFix
+      }
+    });
+  } catch (err: any) {
+    console.error(`Failed to report ${module} status:`, err.message);
+  }
+}
+
 // Function to check for bot configuration changes
 async function checkBotConfig() {
   try {
@@ -45,7 +71,7 @@ async function checkBotConfig() {
     const { data, error } = await supabase
       .from('bot_statistics')
       .select('is_running')
-      .eq('bot_type', 'arbitrage')
+      .eq('bot_type', 'profiter-one')
       .single();
       
     if (error) {
@@ -68,7 +94,7 @@ async function checkBotConfig() {
         level: isRunning ? 'info' : 'warn',
         message: isRunning ? 'Bot started via UI control' : 'Bot stopped via UI control',
         category: 'bot_state',
-        bot_type: 'arbitrage',
+        bot_type: 'profiter-one',
         source: 'system'
       });
     }
@@ -88,12 +114,22 @@ async function executeCycle() {
   }
   
   try {
+    // Report module health at the start of execution cycle
+    await reportModuleStatus('scanner', 'ok', { details: 'Scanner running' });
 
     console.log("🔍 Buscando tokens top 200 por volume na Arbitrum...");
     const tokenList = await fetchTopTokensArbitrum(200);
 
     if (tokenList.length === 0) {
       console.error("❌ Lista de tokens vazia, abortando.");
+      await reportModuleStatus('scanner', 'warning', { 
+        details: 'Empty token list', 
+        silent_errors: [{ 
+          message: 'Empty token list received from API', 
+          timestamp: new Date().toISOString(), 
+          code: 'EMPTY_LIST' 
+        }]
+      });
       return;
     }
 
@@ -104,6 +140,9 @@ async function executeCycle() {
       baseToken: currentBaseToken,
       tokenList,
     });
+
+    // Report builder status
+    await reportModuleStatus('builder', 'ok', { details: 'Builder processing route' });
 
     if (bestRoute) {
       const profitInETH = parseFloat(ethers.utils.formatUnits(bestRoute.netProfit, currentBaseToken.decimals));
@@ -125,6 +164,9 @@ async function executeCycle() {
       const {calls, flashLoanToken, flashLoanAmount} = await buildOrchestrationFromRoute({route, executor:executorAddress } );
       const profit = await simulateTokenProfit({provider,executorAddress,tokenAddress: flashLoanToken, calls: calls});
       
+      // Report executor status
+      await reportModuleStatus('executor', 'ok', { details: 'Executor preparing transaction' });
+      
       // Monta a chamada para trocar lucro residual para ETH
       const SwapRemainingtx = await buildSwapToETHCall({ tokenIn: flashLoanToken, amountIn: profit, recipient:executorAddress });
       
@@ -143,20 +185,23 @@ async function executeCycle() {
       // Monta o bundle final
       const Txs = [...(Array.isArray(calls) ? calls : [calls]),SwapRemainingtx,unwrapCall];
 
-     const bundleTxs = Txs.map((tx) => ({signer: signer,
-    transaction: {to: tx.to,data: tx.data,gasLimit: 500_000,}}));
-    await sendBundle(bundleTxs, provider);
+      const bundleTxs = Txs.map((tx) => ({
+        signer: signer,
+        transaction: {
+          to: tx.to,
+          data: tx.data,
+          gasLimit: 500_000,
+        }
+      }));
       
+      await sendBundle(bundleTxs, provider);
       
       try {
-      
-      
-
         await supabase.from("bot_logs").insert({
           level: "info",
           message: `Arbitragem executada com sucesso`,
           category: "transaction",
-          bot_type: "arbitrage",
+          bot_type: "profiter-one",
           source: "executor",
           tx_hash: bundleTxs,
           metadata: {
@@ -169,7 +214,7 @@ async function executeCycle() {
         const { data: stats } = await supabase
           .from('bot_statistics')
           .select('*')
-          .eq('bot_type', 'arbitrage')
+          .eq('bot_type', 'profiter-one')
           .single();
           
         if (stats) {
@@ -190,17 +235,26 @@ async function executeCycle() {
               transactions_count: newTxCount,
               updated_at: new Date().toISOString()
             })
-            .eq('bot_type', 'arbitrage');
+            .eq('bot_type', 'profiter-one');
         }
         
       } catch (err: any) {
         console.error("❌ Erro na execução da arbitragem:", err.message);
 
+        await reportModuleStatus('executor', 'error', {
+          details: 'Transaction execution error',
+          silent_errors: [{
+            message: `Error in arbitrage execution: ${err.message}`,
+            timestamp: new Date().toISOString(),
+            code: 'TX_FAIL'
+          }]
+        });
+
         await supabase.from("bot_logs").insert({
           level: "error",
           message: `Erro na arbitragem`,
           category: "exception",
-          bot_type: "arbitrage",
+          bot_type: "profiter-one",
           source: "executor",
           metadata: { error: err.message },
         });
@@ -211,16 +265,41 @@ async function executeCycle() {
   } catch (err: any) {
     console.error("❌ Erro no ciclo de execução:", err.message);
     
+    // Report error in the appropriate module
+    const errorModule = err.message.includes('scanner') ? 'scanner' : 
+                       err.message.includes('builder') ? 'builder' : 
+                       err.message.includes('executor') ? 'executor' : 'system';
+    
+    await reportModuleStatus(errorModule, 'error', {
+      details: 'Execution cycle error',
+      silent_errors: [{
+        message: `Error in execution cycle: ${err.message}`,
+        timestamp: new Date().toISOString(),
+        code: 'CYCLE_ERROR'
+      }]
+    });
+    
     // Log any unexpected errors
     await supabase.from("bot_logs").insert({
       level: "error",
       message: `Erro no ciclo de execução: ${err.message}`,
       category: "exception",
-      bot_type: "arbitrage",
+      bot_type: "profiter-one",
       source: "system",
       metadata: { error: err.message, stack: err.stack },
     });
   }
+}
+
+// Check watcher status every minute
+async function checkWatcherStatus() {
+  if (isRunning) {
+    await reportModuleStatus('watcher', 'ok', { 
+      details: 'Watcher monitoring system' 
+    });
+  }
+  
+  setTimeout(checkWatcherStatus, 60000);
 }
 
 // Main bot loop
@@ -232,7 +311,7 @@ async function loop() {
     const { data, error } = await supabase
       .from('bot_statistics')
       .select('is_running')
-      .eq('bot_type', 'arbitrage')
+      .eq('bot_type', 'profiter-one')
       .single();
       
     if (data) {
@@ -241,7 +320,7 @@ async function loop() {
     } else {
       // Initialize bot_statistics if it doesn't exist
       await supabase.from('bot_statistics').upsert({
-        bot_type: 'arbitrage',
+        bot_type: 'profiter-one',
         is_running: false,
         total_profit: 0,
         success_rate: 0,
@@ -260,7 +339,7 @@ async function loop() {
     level: "info",
     message: `Bot iniciado com configuração: Profit min=${currentProfitThreshold} ETH, Base token=${currentBaseToken.symbol}`,
     category: "bot_state",
-    bot_type: "arbitrage",
+    bot_type: "profiter-one",
     source: "system",
     metadata: { 
       profitThreshold: currentProfitThreshold,
@@ -268,6 +347,15 @@ async function loop() {
       isRunning
     },
   });
+
+  // Initialize module status
+  await reportModuleStatus('scanner', 'inactive', { details: 'Scanner waiting for activation' });
+  await reportModuleStatus('builder', 'inactive', { details: 'Builder waiting for activation' });
+  await reportModuleStatus('executor', 'inactive', { details: 'Executor waiting for activation' });
+  await reportModuleStatus('watcher', 'inactive', { details: 'Watcher waiting for activation' });
+
+  // Start watcher status check
+  checkWatcherStatus();
 
   while (true) {
     try {
@@ -280,6 +368,16 @@ async function loop() {
       }
     } catch (err) {
       console.error("❌ Erro no loop principal:", err);
+      
+      // Report system error
+      await reportModuleStatus('system', 'error', {
+        details: 'Main loop error',
+        silent_errors: [{
+          message: `Error in main loop: ${err.message}`,
+          timestamp: new Date().toISOString(),
+          code: 'LOOP_ERROR'
+        }]
+      });
     }
     await sleep(1000); // Poll every second
   }
