@@ -52,6 +52,7 @@
     "embla-carousel-react": "^8.3.0",
     "ethers": "^5.7.2",
     "input-otp": "^1.2.4",
+    "lru-cache": "^10.1.0",
     "lucide-react": "^0.462.0",
     "next-themes": "^0.3.0",
     "p-limit": "^3.1.0",
