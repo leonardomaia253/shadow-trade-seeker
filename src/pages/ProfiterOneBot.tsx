@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,8 +7,9 @@ import OpportunitiesTable from '@/components/OpportunitiesTable';
 import BotConfiguration from '@/components/BotConfiguration';
 import BotPerformance from '@/components/BotPerformance';
 import BotLogsViewer from '@/components/BotLogsViewer';
-import { TokenInfo } from '@/Arbitrum/utils/types';
 import BotNavigation from '@/components/BotNavigation';
+import BotModuleStatus from '@/components/BotModuleStatus';
+import { TokenInfo } from '@/Arbitrum/utils/types';
 
 // Define the bot statistics type to match the database schema
 interface BotStatistics {
@@ -28,6 +28,8 @@ const ProfiterOneBot = () => {
   const { toast } = useToast();
   const [isRunning, setIsRunning] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isStarting, setIsStarting] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
   const [baseToken, setBaseToken] = useState<TokenInfo>({
     address: "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",
     symbol: "WETH",
@@ -162,7 +164,7 @@ const ProfiterOneBot = () => {
     setIsRunning(false);
   };
 
-  const handleUpdateConfig = (config: any) => {
+  const handleUpdateConfig = async (config: any) => {
     setBaseToken(config.baseToken);
     setProfitThreshold(config.profitThreshold);
     
@@ -199,7 +201,7 @@ const ProfiterOneBot = () => {
       <DashboardHeader />
       
       <div className="container mx-auto px-4 py-6">
-        <h1 className="text-2xl mb-6 font-bold text-neon-green">Profiter One Bot Control</h1>
+        <h1 className="text-2xl mb-6 font-bold text-blue-400">Profiter One Bot Control</h1>
         
         <BotNavigation />
         
@@ -220,11 +222,16 @@ const ProfiterOneBot = () => {
               stats={stats}
               baseToken={baseToken}
               profitThreshold={profitThreshold}
+              isStarting={isStarting}
+              isStopping={isStopping}
             />
           </div>
         </div>
         
-        {/* Add BotLogsViewer component below the control panel */}
+        <div className="mb-6">
+          <BotModuleStatus botType="profiter-one" />
+        </div>
+        
         <div className="mb-6">
           <BotLogsViewer botType="profiter-one" />
         </div>

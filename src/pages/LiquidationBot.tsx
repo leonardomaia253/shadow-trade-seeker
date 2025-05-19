@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,6 +8,7 @@ import BotConfiguration from '@/components/BotConfiguration';
 import BotPerformance from '@/components/BotPerformance';
 import BotLogsViewer from '@/components/BotLogsViewer';
 import BotNavigation from '@/components/BotNavigation';
+import BotModuleStatus from '@/components/BotModuleStatus';
 import { TokenInfo } from '@/Arbitrum/utils/types';
 
 // Define the bot statistics type to match the database schema
@@ -28,6 +28,8 @@ const LiquidationBot = () => {
   const { toast } = useToast();
   const [isRunning, setIsRunning] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isStarting, setIsStarting] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
   const [baseToken, setBaseToken] = useState<TokenInfo>({
     address: "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",
     symbol: "WETH",
@@ -162,7 +164,7 @@ const LiquidationBot = () => {
     setIsRunning(false);
   };
 
-  const handleUpdateConfig = (config: any) => {
+  const handleUpdateConfig = async (config: any) => {
     setBaseToken(config.baseToken);
     setProfitThreshold(config.profitThreshold);
     
@@ -199,7 +201,7 @@ const LiquidationBot = () => {
       <DashboardHeader />
       
       <div className="container mx-auto px-4 py-6">
-        <h1 className="text-2xl mb-6 font-bold text-neon-purple">Liquidation Bot Control</h1>
+        <h1 className="text-2xl mb-6 font-bold text-orange-400">Liquidation Bot Control</h1>
         
         <BotNavigation />
         
@@ -220,8 +222,14 @@ const LiquidationBot = () => {
               stats={stats}
               baseToken={baseToken}
               profitThreshold={profitThreshold}
+              isStarting={isStarting}
+              isStopping={isStopping}
             />
           </div>
+        </div>
+        
+        <div className="mb-6">
+          <BotModuleStatus botType="liquidation" />
         </div>
         
         <div className="mb-6">

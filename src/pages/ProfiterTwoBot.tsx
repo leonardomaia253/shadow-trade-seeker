@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,6 +8,7 @@ import BotConfiguration from '@/components/BotConfiguration';
 import BotPerformance from '@/components/BotPerformance';
 import BotLogsViewer from '@/components/BotLogsViewer';
 import BotNavigation from '@/components/BotNavigation';
+import BotModuleStatus from '@/components/BotModuleStatus';
 import { TokenInfo } from '@/Arbitrum/utils/types';
 
 // Define the bot statistics type to match the database schema
@@ -28,6 +28,8 @@ const ProfiterTwoBot = () => {
   const { toast } = useToast();
   const [isRunning, setIsRunning] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isStarting, setIsStarting] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
   const [baseToken, setBaseToken] = useState<TokenInfo>({
     address: "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",
     symbol: "WETH",
@@ -153,16 +155,86 @@ const ProfiterTwoBot = () => {
   }, [toast]);
 
   const handleStartBot = async () => {
-    if (isRunning) return;
-    setIsRunning(true);
+    if (isRunning || isStarting) return;
+    
+    setIsStarting(true);
+    
+    try {
+      // Log bot start action
+      await supabase.from('bot_logs').insert({
+        level: 'info',
+        message: 'User initiated bot start',
+        category: 'user_action',
+        bot_type: 'profiter-two',
+        source: 'ui',
+        metadata: { 
+          profitThreshold,
+          baseToken: baseToken.symbol
+        }
+      });
+      
+      // Update database status
+      await supabase.from('bot_statistics')
+        .update({ is_running: true, updated_at: new Date().toISOString() })
+        .eq('bot_type', 'profiter-two');
+      
+      setIsRunning(true);
+      
+      toast({
+        title: "Bot Starting",
+        description: "The Profiter Two Bot is initializing...",
+        variant: "default"
+      });
+    } catch (error) {
+      console.error('Error starting bot:', error);
+      toast({
+        title: "Failed to start bot",
+        description: "An error occurred while starting the bot",
+        variant: "destructive"
+      });
+      setIsStarting(false);
+    }
   };
 
   const handleStopBot = async () => {
-    if (!isRunning) return;
-    setIsRunning(false);
+    if (!isRunning || isStopping) return;
+    
+    setIsStopping(true);
+    
+    try {
+      // Log bot stop action
+      await supabase.from('bot_logs').insert({
+        level: 'info',
+        message: 'User initiated bot stop',
+        category: 'user_action',
+        bot_type: 'profiter-two',
+        source: 'ui'
+      });
+      
+      // Update database status
+      await supabase.from('bot_statistics')
+        .update({ is_running: false, updated_at: new Date().toISOString() })
+        .eq('bot_type', 'profiter-two');
+      
+      setIsRunning(false);
+      
+      toast({
+        title: "Bot Stopping",
+        description: "The Profiter Two Bot is shutting down...",
+        variant: "default"
+      });
+    } catch (error) {
+      console.error('Error stopping bot:', error);
+      toast({
+        title: "Failed to stop bot",
+        description: "An error occurred while stopping the bot",
+        variant: "destructive"
+      });
+      setIsStopping(false);
+    }
   };
 
-  const handleUpdateConfig = (config: any) => {
+  const handleUpdateConfig = async (config: any) => {
     setBaseToken(config.baseToken);
     setProfitThreshold(config.profitThreshold);
     
@@ -220,11 +292,16 @@ const ProfiterTwoBot = () => {
               stats={stats}
               baseToken={baseToken}
               profitThreshold={profitThreshold}
+              isStarting={isStarting}
+              isStopping={isStopping}
             />
           </div>
         </div>
         
-        {/* Add BotLogsViewer component below the control panel */}
+        <div className="mb-6">
+          <BotModuleStatus botType="profiter-two" />
+        </div>
+        
         <div className="mb-6">
           <BotLogsViewer botType="profiter-two" />
         </div>

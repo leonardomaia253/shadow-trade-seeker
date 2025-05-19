@@ -31,6 +31,19 @@ async function startBot(supabase, config) {
     is_running: true,
     updated_at: new Date().toISOString() 
   }).eq('bot_type', 'profiter-two');
+
+  // Create initial health check logs for each module
+  const modules = ['scanner', 'builder', 'executor', 'watcher'];
+  for (const module of modules) {
+    await supabase.from('bot_logs').insert({
+      level: 'info',
+      message: `${module} initializing`,
+      category: 'health_check',
+      bot_type: 'profiter-two',
+      source: module,
+      metadata: { status: 'inactive', details: 'Module starting up' }
+    });
+  }
   
   return { success: true, message: "Bot started successfully" };
 }
@@ -51,6 +64,19 @@ async function stopBot(supabase) {
     is_running: false,
     updated_at: new Date().toISOString() 
   }).eq('bot_type', 'profiter-two');
+
+  // Update health check logs for each module
+  const modules = ['scanner', 'builder', 'executor', 'watcher'];
+  for (const module of modules) {
+    await supabase.from('bot_logs').insert({
+      level: 'info',
+      message: `${module} stopped`,
+      category: 'health_check',
+      bot_type: 'profiter-two',
+      source: module,
+      metadata: { status: 'inactive', details: 'Module stopped by user' }
+    });
+  }
   
   return { success: true, message: "Bot stopped successfully" };
 }
@@ -119,12 +145,37 @@ async function getBotStatus(supabase) {
     throw new Error(`Failed to fetch logs: ${logsError.message}`);
   }
   
+  // Get module health status
+  const { data: healthLogs, error: healthError } = await supabase
+    .from('bot_logs')
+    .select('*')
+    .eq('bot_type', 'profiter-two')
+    .eq('category', 'health_check')
+    .order('timestamp', { ascending: false });
+    
+  let moduleStatus = {};
+  if (healthLogs) {
+    const seenModules = new Set();
+    healthLogs.forEach(log => {
+      const module = log.source;
+      if (module && !seenModules.has(module)) {
+        seenModules.add(module);
+        moduleStatus[module] = {
+          status: log.metadata?.status || 'inactive',
+          lastChecked: log.timestamp,
+          details: log.metadata
+        };
+      }
+    });
+  }
+  
   return {
     success: true,
     status: statistics?.is_running ? "running" : "stopped",
     statistics,
     transactions,
-    logs
+    logs,
+    moduleStatus
   };
 }
 

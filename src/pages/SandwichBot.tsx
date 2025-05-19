@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,6 +9,7 @@ import BotConfiguration from '@/components/BotConfiguration';
 import BotPerformance from '@/components/BotPerformance';
 import BotLogsViewer from '@/components/BotLogsViewer';
 import BotNavigation from '@/components/BotNavigation';
+import BotModuleStatus from '@/components/BotModuleStatus';
 import { TokenInfo } from '@/Arbitrum/utils/types';
 
 // Define the bot statistics type to match the database schema
@@ -27,6 +29,8 @@ const SandwichBot = () => {
   const { toast } = useToast();
   const [isRunning, setIsRunning] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isStarting, setIsStarting] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
   const [baseToken, setBaseToken] = useState<TokenInfo>({
     address: "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",
     symbol: "WETH",
@@ -346,7 +350,7 @@ const SandwichBot = () => {
       <DashboardHeader />
       
       <div className="container mx-auto px-4 py-6">
-        <h1 className="text-2xl mb-6 font-bold text-neon-yellow">Sandwich Bot Control</h1>
+        <h1 className="text-2xl mb-6 font-bold text-purple-400">Sandwich Bot Control</h1>
         
         <BotNavigation />
         
@@ -367,8 +371,14 @@ const SandwichBot = () => {
               stats={stats}
               baseToken={baseToken}
               profitThreshold={profitThreshold}
+              isStarting={isStarting}
+              isStopping={isStopping}
             />
           </div>
+        </div>
+        
+        <div className="mb-6">
+          <BotModuleStatus botType="sandwich" />
         </div>
         
         <div className="mb-6">

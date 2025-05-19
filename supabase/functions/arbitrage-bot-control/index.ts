@@ -10,7 +10,7 @@ const corsHeaders = {
 
 // Function to start the arbitrage bot
 async function startBot(supabase, config) {
-  const { baseToken, profitThreshold } = config;
+  const { baseToken, profitThreshold, gasMultiplier, maxGasPrice } = config || {};
 
   // Log bot start event
   await supabase.from('bot_logs').insert({
@@ -19,7 +19,7 @@ async function startBot(supabase, config) {
     category: 'bot_state',
     bot_type: 'arbitrage',
     source: 'system',
-    metadata: { baseToken, profitThreshold }
+    metadata: { baseToken, profitThreshold, gasMultiplier, maxGasPrice }
   });
   
   // Update bot status in database to trigger the bot to start
@@ -27,6 +27,19 @@ async function startBot(supabase, config) {
     is_running: true,
     updated_at: new Date().toISOString() 
   }).eq('bot_type', 'arbitrage');
+
+  // Create initial health check logs for each module
+  const modules = ['scanner', 'builder', 'executor', 'watcher'];
+  for (const module of modules) {
+    await supabase.from('bot_logs').insert({
+      level: 'info',
+      message: `${module} initializing`,
+      category: 'health_check',
+      bot_type: 'arbitrage',
+      source: module,
+      metadata: { status: 'inactive', details: 'Module starting up' }
+    });
+  }
   
   return { success: true, message: "Bot started successfully" };
 }
@@ -47,13 +60,26 @@ async function stopBot(supabase) {
     is_running: false,
     updated_at: new Date().toISOString() 
   }).eq('bot_type', 'arbitrage');
+
+  // Update health check logs for each module
+  const modules = ['scanner', 'builder', 'executor', 'watcher'];
+  for (const module of modules) {
+    await supabase.from('bot_logs').insert({
+      level: 'info',
+      message: `${module} stopped`,
+      category: 'health_check',
+      bot_type: 'arbitrage',
+      source: module,
+      metadata: { status: 'inactive', details: 'Module stopped by user' }
+    });
+  }
   
   return { success: true, message: "Bot stopped successfully" };
 }
 
 // Function to update the bot's configuration
 async function updateBotConfig(supabase, config) {
-  const { baseToken, profitThreshold, gasMultiplier, maxGasPrice } = config;
+  const { baseToken, profitThreshold, gasMultiplier, maxGasPrice } = config || {};
   
   // Log configuration update
   await supabase.from('bot_logs').insert({
@@ -112,13 +138,38 @@ async function getBotStatus(supabase) {
   if (logsError) {
     throw new Error(`Failed to fetch logs: ${logsError.message}`);
   }
+
+  // Get module health status
+  const { data: healthLogs, error: healthError } = await supabase
+    .from('bot_logs')
+    .select('*')
+    .eq('bot_type', 'arbitrage')
+    .eq('category', 'health_check')
+    .order('timestamp', { ascending: false });
+    
+  let moduleStatus = {};
+  if (healthLogs) {
+    const seenModules = new Set();
+    healthLogs.forEach(log => {
+      const module = log.source;
+      if (module && !seenModules.has(module)) {
+        seenModules.add(module);
+        moduleStatus[module] = {
+          status: log.metadata?.status || 'inactive',
+          lastChecked: log.timestamp,
+          details: log.metadata
+        };
+      }
+    });
+  }
   
   return {
     success: true,
     status: statistics?.is_running ? "running" : "stopped",
     statistics,
     transactions,
-    logs
+    logs,
+    moduleStatus
   };
 }
 
@@ -174,7 +225,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: false, 
-        message: error.message || 'An error occurred'
+        message: error?.message || 'An error occurred'
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
