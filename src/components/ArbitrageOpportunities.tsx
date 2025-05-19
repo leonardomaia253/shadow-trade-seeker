@@ -1,7 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -12,7 +11,6 @@ interface Transaction {
   profit: number;
   action: string;
   protocol?: string;
-  metadata?: any;
 }
 
 const ArbitrageOpportunities = () => {
@@ -42,8 +40,7 @@ const ArbitrageOpportunities = () => {
             timestamp: tx.timestamp || new Date().toISOString(),
             profit: typeof tx.profit === 'string' ? parseFloat(tx.profit) : (tx.profit || 0),
             action: tx.action || 'swap',
-            protocol: tx.protocol,
-            metadata: tx.metadata
+            protocol: tx.protocol
           })));
         }
       } catch (error) {
@@ -131,19 +128,9 @@ const ArbitrageOpportunities = () => {
                     <span className="text-xs text-muted-foreground">{formatTimestamp(opp.timestamp)}</span>
                   </div>
                   <div className="mt-1 text-sm">
-                    {opp.metadata?.path ? (
-                      <div className="flex items-center">
-                        {typeof opp.metadata.path === 'string' 
-                          ? opp.metadata.path
-                          : Array.isArray(opp.metadata.dexes) 
-                            ? opp.metadata.dexes.join(' → ')
-                            : 'Swap'}
-                      </div>
-                    ) : (
-                      <div className="flex items-center">
-                        {opp.action} {opp.protocol ? `on ${opp.protocol}` : ''}
-                      </div>
-                    )}
+                    <div className="flex items-center">
+                      {opp.action} {opp.protocol ? `on ${opp.protocol}` : ''}
+                    </div>
                   </div>
                 </div>
                 <div className="text-right">
