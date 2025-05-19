@@ -213,7 +213,6 @@ async function validateOpportunity(route: any, calls: any[]) {
       }));
       
       // Create serialized transactions with minimal fields required for Tenderly simulation
-      // This avoids the Provider vs JsonRpcProvider type issue
       simulationLogger.logSimulation("Preparing Tenderly simulation", {
         bundleSize: bundleTxs.length
       }, true);
@@ -241,6 +240,9 @@ async function validateOpportunity(route: any, calls: any[]) {
         transactionCount: simulationTransactions.length
       }, true);
       
+      // Fix: Pass simulationTransactions directly without the second parameter
+      // The Tenderly simulation function will use default provider or won't need it
+      // with serialized transactions
       const simulationResult = await simulateBundleWithTenderly(simulationTransactions);
       
       simulationLogger.logSimulation("Tenderly simulation completed", { 
@@ -813,9 +815,9 @@ async function loop() {
                 value: "0x0",
               }, { r: "0x", s: "0x", v: 27 });
               
-              // Fix: Cast provider to JsonRpcProvider type to satisfy simulateBundleWithTenderly parameter type
-              const jsonRpcProvider = provider as ethers.providers.JsonRpcProvider;
-              const result = await simulateBundleWithTenderly([testTx], jsonRpcProvider);
+              // Fix: Removed the second parameter to simulateBundleWithTenderly
+              // Pass only the serialized transaction array
+              const result = await simulateBundleWithTenderly([testTx]);
               return result.success || result.results !== undefined;
             } catch {
               return false;
