@@ -26,27 +26,23 @@ export async function simulateTokenProfit({
   tokenAddress: string;
   calls: CallData[];
 }) {
-  const executor = new ethers.Contract(executorAddress, executorAbi, provider);
   const token = new ethers.Contract(tokenAddress, erc20Abi, provider);
-
   const iface = new ethers.utils.Interface(executorAbi);
   const calldata = iface.encodeFunctionData("executeWithCollateral", [calls]);
 
-  // Saldo antes da simulação
-  const balanceBefore = await token.balanceOf(executorAddress);
+  // Chamar em paralelo para ganhar tempo
+  const [balanceBefore, callResult] = await Promise.all([
+    token.balanceOf(executorAddress),
+    provider.call({
+      to: executorAddress,
+      data: calldata,
+      from: executorAddress,
+    }),
+  ]);
 
-  // Simula a execução sem enviar para a rede (off-chain)
-  await provider.call({
-    to: executorAddress,
-    data: calldata,
-    from: executorAddress,
-  });
-
-  // Saldo após a simulação
   const balanceAfter = await token.balanceOf(executorAddress);
 
   const profit = balanceAfter.sub(balanceBefore);
-  console.log("Simulated token profit:", profit.toString());
 
   return profit;
 }

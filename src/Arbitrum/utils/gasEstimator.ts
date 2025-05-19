@@ -1,14 +1,14 @@
-}import { ethers } from "ethers";
+import { ethers } from "ethers";
 import { TokenInfo } from "./types";
 import { provider } from "../config/provider";
-import { getTokenPriceInEth } from "./getTokenPriceInEth";
+import { getTokenPriceInEthDynamic } from "./getTokenPriceInETH";
 
 
 
 interface GasInfo {
   gasPrice: ethers.BigNumber;
   ethPrice: ethers.BigNumber;
-
+}
 export async function getGasCostInToken({
   provider: providerInput,
   gasUnits,
@@ -29,7 +29,7 @@ export async function getGasCostInToken({
       return gasEstimateWei;
     }
 
-    const tokenPriceInEth = await getTokenPriceInEth(token.address, providerInstance);
+    const tokenPriceInEth = await getTokenPriceInEthDynamic({tokenSymbol:token.symbol, provider:providerInstance});
 
     if (tokenPriceInEth.isZero()) {
       console.warn(`Token price in ETH not found for ${token.symbol}, fallback to gasEstimateWei`);

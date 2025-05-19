@@ -4,7 +4,7 @@ import { buildSwapTransaction } from "../../shared/build/buildSwap";
 import { CallData, DexType } from "../../utils/types";
 import { ERC20_ABI } from "../../constants/abis";
 import { DEX_ROUTER } from "../../constants/dexes";
-import { estimateSwapOutput } from "@/Arbitrum/utils/estimateOutput";
+import { estimateSwapOutput } from "@/Arbitrum/shared/utils/QuoteRouter";
 
 
 export async function buildFrontrunBundlelongo({
