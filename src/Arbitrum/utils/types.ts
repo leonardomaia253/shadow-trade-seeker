@@ -175,9 +175,27 @@ export interface BuiltSwapCall {
   value?: ethers.BigNumber;  
 }
 
-// Log metadata for enhanced logging
+// Enhanced LogMetadata interface for robust logging
 export interface LogMetadata {
-  [key: string]: any;
+  category?: string;
+  botType?: string;
+  source?: string;
+  duration?: number;
+  tx_hash?: string;
+  errorCode?: string;
+  stack?: string;
+  errorName?: string;
+  blockNumber?: number;
+  gasUsed?: string | number;
+  gasPrice?: string | number;
+  executionPhase?: string;
+  attemptCount?: number;
+  params?: Record<string, any>;
+  profit?: number | string;
+  route?: any[];
+  dexes?: string[];
+  tokens?: string[];
+  [key: string]: any; // Allow for flexible additional fields
 }
 
 export type Call = {
