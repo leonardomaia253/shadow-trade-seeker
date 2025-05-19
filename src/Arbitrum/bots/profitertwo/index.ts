@@ -1,4 +1,3 @@
-
 import { ethers } from "ethers";
 import "dotenv/config";
 import { createResilientProvider } from "../../config/resilientProvider";
@@ -160,26 +159,34 @@ async function validateOpportunity(route: any, calls: any[]) {
       }
       
       // Simula a transação usando Tenderly
+      // Fix type issue by creating a JSON-RPC compatible transaction object
       const bundleTxs = calls.map((tx) => ({
         signer: signer,
         transaction: {to: tx.to, data: tx.data, gasLimit: 500_000},
       }));
       
-      const simulationResult = await simulateBundleWithTenderly(
-        bundleTxs.map(tx => ethers.utils.serializeTransaction({
+      // Create serialized transactions with minimal fields required for Tenderly simulation
+      // This avoids the Provider vs JsonRpcProvider type issue
+      const simulationTransactions = bundleTxs.map(tx => {
+        const txData = {
           to: tx.transaction.to,
           data: tx.transaction.data,
           gasLimit: tx.transaction.gasLimit,
-          gasPrice,
+          gasPrice: ethers.utils.parseUnits("1", "gwei").toHexString(),
           nonce: 0,
           chainId: 42161, // Arbitrum
-          value: 0,
-        }, {
-          r: '0x',
-          s: '0x',
+          value: "0x0",
+        };
+        
+        // Create a minimal transaction that doesn't require Provider fields
+        return ethers.utils.serializeTransaction(txData, {
+          r: "0x",
+          s: "0x",
           v: 27
-        }))
-      );
+        });
+      });
+      
+      const simulationResult = await simulateBundleWithTenderly(simulationTransactions);
       
       if (!simulationResult.success) {
         log.warn("Tenderly simulation failed", { 

@@ -1,76 +1,59 @@
+import axios from "axios";
+import { ethers } from "ethers";
 
-import axios from 'axios';
-import { ethers } from 'ethers';
-
-const TENDERLY_USER = "Volup";
-const TENDERLY_PROJECT = "project";
-const TENDERLY_ACCESS_KEY = "xlY4N6Y4R2e0kXsdaff3uMmRRSvdeIb1";
-
-interface SimulationResult {
-  success: boolean;
-  simulationId?: string;
-  raw?: any;
-}
-
-function parseSignedTxsForTenderly(signedTxs: string[]) {
-  return signedTxs.map((raw) => {
-    const tx = ethers.utils.parseTransaction(raw);
-
-    if (!tx.from) {
-      throw new Error(`Transação não possui campo 'from': ${raw}`);
-    }
-
-    return {
-      to: tx.to ?? ethers.constants.AddressZero,
-      input: tx.data,
-      gas: tx.gasLimit?.toNumber() ?? 8000000, // fallback seguro
-      gas_price: tx.gasPrice?.toNumber() ?? 0,
-      value: tx.value.toString(),
-      from: tx.from,
-      nonce: tx.nonce,
-    };
-  });
-}
-
-export const simulateBundleWithTenderly = async (
-  signedTxs: string[],
-  networkId: string = '42161',
-): Promise<SimulationResult> => {
-  if (!signedTxs || signedTxs.length === 0) {
-    throw new Error('Nenhuma transação assinada fornecida para simulação');
-  }
-
+export async function simulateBundleWithTenderly(
+  // Accept serialized transactions as strings instead of requiring a provider
+  serializedTransactions: string[]
+): Promise<{ success: boolean; results?: any; error?: string }> {
   try {
-    const transactions = parseSignedTxsForTenderly(signedTxs);
+    const TENDERLY_USER = process.env.TENDERLY_USER || "demo";
+    const TENDERLY_PROJECT = process.env.TENDERLY_PROJECT || "project";
+    const TENDERLY_ACCESS_KEY = process.env.TENDERLY_ACCESS_KEY || "";
 
-    const response = await axios.post(
-      `https://api.tenderly.co/api/v1/account/${TENDERLY_USER}/project/${TENDERLY_PROJECT}/simulate-bundle`,
-      {
-        network_id: networkId,
-        transactions,
-        save: true,
-        save_if_fails: true,
-      },
-      {
-        headers: {
-          'X-Access-Key': TENDERLY_ACCESS_KEY,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    const simResults = response.data?.simulation_results;
-    const allSuccess = simResults.every((res: any) => res.simulation.status === true);
-
-    // Não há um simulation.id padrão para bundle, mas podemos retornar todos os dados
-    return {
-      success: allSuccess,
-      raw: simResults,
+    const endpoint = `https://api.tenderly.co/api/v1/account/${TENDERLY_USER}/project/${TENDERLY_PROJECT}/simulate`;
+    
+    // Bundle simulation request
+    const body = {
+      network_id: "42161", // Arbitrum
+      save: false, // Don't save simulation to dashboard
+      save_if_fails: true, // Save if simulation fails
+      simulation_type: "quick", // Fast simulation mode
+      transactions: serializedTransactions.map(tx => ({
+        raw_tx: tx,
+        network_id: "42161" // Arbitrum
+      }))
     };
-  } catch (error: any) {
-    console.error("Erro ao simular bundle na Tenderly:", error.response?.data || error.message);
+
+    const headers = {
+      "Content-Type": "application/json",
+      "X-Access-Key": TENDERLY_ACCESS_KEY
+    };
+
+    const response = await axios.post(endpoint, body, { headers });
+
+    if (response.status === 200 && response.data) {
+      // Check if any transaction failed
+      const simulationFailed = response.data.simulation_results.some(
+        (simResult: any) => simResult.status === false
+      );
+      
+      return {
+        success: !simulationFailed,
+        results: response.data
+      };
+    }
+    
     return {
       success: false,
+      error: "Invalid response from Tenderly API",
+      results: response.data
+    };
+    
+  } catch (error) {
+    console.error("Error in Tenderly simulation:", error);
+    return {
+      success: false,
+      error: error.message || "Unknown error in Tenderly simulation"
     };
   }
-};
+}
