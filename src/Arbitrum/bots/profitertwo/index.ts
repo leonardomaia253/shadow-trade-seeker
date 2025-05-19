@@ -68,7 +68,7 @@ const MAX_GAS_PRICE = parseFloat(process.env.MAX_GAS_PRICE || "100"); // em gwei
 const HEALTH_PORT = parseInt(process.env.HEALTH_PORT || "3001");
 
 // Initialize provider and signer with resilience
-const provider = createResilientProvider();
+const provider = new ethers.providers.WebSocketProvider(process.env.ALCHEMY_WSS!);
 const signer = new Wallet(process.env.PRIVATE_KEY!, provider);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
