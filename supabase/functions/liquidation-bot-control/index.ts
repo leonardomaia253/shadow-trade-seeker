@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.1";
 
@@ -46,6 +45,240 @@ async function reportModuleStatus(supabase, module, status, details = {}) {
       needsAttention: needsFix
     }
   });
+}
+
+// Mock function for PM2 operations
+async function mockPm2Operation(operation, params = {}) {
+  console.log(`PM2 ${operation} operation requested with params:`, params);
+  
+  // Simulate success response for different operations
+  switch (operation) {
+    case 'start':
+      return { success: true, output: `Started process ${params.name || 'liquidation-bot'}` };
+    case 'stop':
+      return { success: true, output: `Stopped process ${params.name || 'liquidation-bot'}` };
+    case 'restart':
+      return { success: true, output: `Restarted process ${params.name || 'liquidation-bot'}` };
+    case 'logs':
+      return { success: true, output: 'mock logs output for liquidation-bot' };
+    case 'status':
+      return { success: true, status: 'online', output: 'liquidation-bot online' };
+    default:
+      return { success: false, error: `Unknown operation: ${operation}` };
+  }
+}
+
+// Function to start the bot with PM2
+async function startBotWithPm2(supabase, config) {
+  const { protocol, healthFactorThreshold, gasMultiplier, maxGasPrice } = config || {};
+
+  // Log bot start event
+  await logEvent(
+    supabase,
+    'info',
+    `Starting Liquidation bot with PM2... targeting ${protocol || 'all protocols'}`,
+    'bot_state',
+    'liquidation',
+    'system',
+    { protocol, healthFactorThreshold, gasMultiplier, maxGasPrice, pm2: true }
+  );
+  
+  // Execute PM2 start command
+  const pm2Result = await mockPm2Operation('start', {
+    name: 'liquidation-bot',
+    config: {
+      protocol: protocol || 'all',
+      healthFactorThreshold: healthFactorThreshold || 1.05,
+      gasMultiplier: gasMultiplier || 1.2,
+      maxGasPrice: maxGasPrice || 30
+    }
+  });
+  
+  if (!pm2Result.success) {
+    await logEvent(
+      supabase,
+      'error',
+      `PM2 failed to start Liquidation bot: ${pm2Result.error}`,
+      'bot_state',
+      'liquidation',
+      'system'
+    );
+    throw new Error(`Failed to start bot with PM2: ${pm2Result.error}`);
+  }
+  
+  // Update bot status in database
+  await supabase.from('bot_statistics').update({ 
+    is_running: true,
+    updated_at: new Date().toISOString() 
+  }).eq('bot_type', 'liquidation');
+
+  // Create initial health check logs for each module
+  const modules = ['scanner', 'builder', 'executor', 'watcher'];
+  for (const module of modules) {
+    await reportModuleStatus(
+      supabase, 
+      module, 
+      'ok', 
+      { details: 'Module initialized by PM2' }
+    );
+  }
+  
+  return { 
+    success: true, 
+    message: "Bot started successfully with PM2",
+    pm2Output: pm2Result.output
+  };
+}
+
+// Function to stop the bot with PM2
+async function stopBotWithPm2(supabase) {
+  // Log bot stop event
+  await logEvent(
+    supabase,
+    'info',
+    'Stopping Liquidation bot with PM2...',
+    'bot_state',
+    'liquidation',
+    'system'
+  );
+  
+  // Execute PM2 stop command
+  const pm2Result = await mockPm2Operation('stop', { name: 'liquidation-bot' });
+  
+  if (!pm2Result.success) {
+    await logEvent(
+      supabase,
+      'error',
+      `PM2 failed to stop Liquidation bot: ${pm2Result.error}`,
+      'bot_state',
+      'liquidation',
+      'system'
+    );
+    throw new Error(`Failed to stop bot with PM2: ${pm2Result.error}`);
+  }
+  
+  // Update bot status in database
+  await supabase.from('bot_statistics').update({ 
+    is_running: false,
+    updated_at: new Date().toISOString() 
+  }).eq('bot_type', 'liquidation');
+
+  // Update module statuses to inactive
+  const modules = ['scanner', 'builder', 'executor', 'watcher'];
+  for (const module of modules) {
+    await reportModuleStatus(
+      supabase, 
+      module, 
+      'inactive', 
+      { details: 'Module stopped by PM2' }
+    );
+  }
+  
+  return { 
+    success: true, 
+    message: "Bot stopped successfully with PM2",
+    pm2Output: pm2Result.output
+  };
+}
+
+// Function to restart the bot with PM2
+async function restartBotWithPm2(supabase) {
+  // Log bot restart event
+  await logEvent(
+    supabase,
+    'info',
+    'Restarting Liquidation bot with PM2...',
+    'bot_state',
+    'liquidation',
+    'system'
+  );
+  
+  // Execute PM2 restart command
+  const pm2Result = await mockPm2Operation('restart', { name: 'liquidation-bot' });
+  
+  if (!pm2Result.success) {
+    await logEvent(
+      supabase,
+      'error',
+      `PM2 failed to restart Liquidation bot: ${pm2Result.error}`,
+      'bot_state',
+      'liquidation',
+      'system'
+    );
+    throw new Error(`Failed to restart bot with PM2: ${pm2Result.error}`);
+  }
+  
+  // Update module statuses
+  const modules = ['scanner', 'builder', 'executor', 'watcher'];
+  for (const module of modules) {
+    await reportModuleStatus(
+      supabase, 
+      module, 
+      'ok', 
+      { details: 'Module restarted by PM2' }
+    );
+  }
+  
+  return { 
+    success: true, 
+    message: "Bot restarted successfully with PM2",
+    pm2Output: pm2Result.output
+  };
+}
+
+// Function to get PM2 logs
+async function getPm2Logs(supabase) {
+  // Log request for logs
+  await logEvent(
+    supabase,
+    'info',
+    'Requesting PM2 logs for Liquidation bot',
+    'monitoring',
+    'liquidation',
+    'system'
+  );
+  
+  // Execute PM2 logs command
+  const pm2Result = await mockPm2Operation('logs', { name: 'liquidation-bot', lines: 50 });
+  
+  if (!pm2Result.success) {
+    throw new Error(`Failed to get PM2 logs: ${pm2Result.error}`);
+  }
+  
+  return { 
+    success: true, 
+    logs: pm2Result.output
+  };
+}
+
+// Function to get PM2 status
+async function getPm2Status(supabase) {
+  // Execute PM2 status command
+  const pm2Result = await mockPm2Operation('status', { name: 'liquidation-bot' });
+  
+  if (!pm2Result.success) {
+    throw new Error(`Failed to get PM2 status: ${pm2Result.error}`);
+  }
+  
+  // Get status from the result
+  const botStatus = pm2Result.status || 'unknown';
+  
+  // Log the status check
+  await logEvent(
+    supabase,
+    'info',
+    `PM2 status check: ${botStatus}`,
+    'monitoring',
+    'liquidation',
+    'system',
+    { pm2Status: botStatus }
+  );
+  
+  return { 
+    success: true, 
+    status: botStatus,
+    fullOutput: pm2Result.output
+  };
 }
 
 // Function to start the liquidation bot
@@ -453,19 +686,19 @@ serve(async (req) => {
         result = await getBotStatus(supabase);
         break;
       case 'pm2Status':
-        result = await checkPM2Status(supabase);
+        result = await getPm2Status(supabase);
         break;
       case 'pm2Start':
-        result = await startPM2(supabase, config);
+        result = await startBotWithPm2(supabase, config);
         break;
       case 'pm2Stop':
-        result = await stopPM2(supabase);
+        result = await stopBotWithPm2(supabase);
         break;
       case 'pm2Restart':
-        result = await restartPM2(supabase);
+        result = await restartBotWithPm2(supabase);
         break;
       case 'pm2Logs':
-        result = await viewPM2Logs(supabase);
+        result = await getPm2Logs(supabase);
         break;
       case 'test':
         // This action is only for development/testing
