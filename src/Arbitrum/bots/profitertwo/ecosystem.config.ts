@@ -8,6 +8,7 @@ module.exports = {
       watch: false,
       env: {
         NODE_ENV: "production",
+        HEALTH_PORT: 3001,
       },
       // Automatically restart the bot if it crashes
       autorestart: true,
@@ -41,6 +42,24 @@ module.exports = {
       // Graceful shutdown
       kill_timeout: 10000, // Give the app 10 seconds to gracefully terminate
       shutdown_with_message: true, // Allow the process to cleanup when receiving a shutdown signal
+      // Advanced monitoring options
+      instances: 1, // Number of instances to launch
+      instance_var: "INSTANCE_ID", // Name of the environment variable with the instance id
+      wait_ready: true, // Wait for process.send('ready') before considering process online
+      listen_timeout: 30000, // Time to wait for process.send('ready') before considering process failed
+      // Automatic reload on specific errors
+      auto_reload: {
+        pattern: "Error: All providers failed for",
+        max_reload: 10,
+        delay: 5000
+      },
+      // Metrics collection
+      metrics: {
+        http: {
+          port: 9209,
+          path: "/metrics"
+        }
+      }
     },
   ],
 };

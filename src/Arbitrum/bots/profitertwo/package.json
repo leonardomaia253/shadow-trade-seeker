@@ -11,16 +11,21 @@
     "pm2:logs": "pm2 logs profiter-two",
     "pm2:status": "pm2 status profiter-two",
     "pm2:monitor": "pm2 monit profiter-two",
-    "health": "curl http://localhost:3001/health"
+    "pm2:restart": "pm2 restart profiter-two",
+    "pm2:reload": "pm2 reload profiter-two",
+    "health": "curl http://localhost:3001/health",
+    "test": "jest"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",
+    "axios": "^1.9.0",
     "dotenv": "^16.4.4",
     "ethers": "^5.7.2",
     "lru-cache": "^10.1.0", 
     "profiter-two": "file:",
     "ts-node": "^10.9.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "ws": "^8.16.0"
   },
   "engines": {
     "node": ">=16"
