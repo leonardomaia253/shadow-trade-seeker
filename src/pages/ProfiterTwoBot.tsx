@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,6 +12,7 @@ import BotNavigation from '@/components/BotNavigation';
 import BotModuleStatus from '@/components/BotModuleStatus';
 import { TokenInfo } from '@/Arbitrum/utils/types';
 import { enhancedLogger } from '@/Arbitrum/utils/enhancedLogger';
+import { Button } from "@/components/ui/button";
 
 // Define the bot statistics type to match the database schema
 interface BotStatistics {
@@ -338,6 +340,42 @@ const ProfiterTwoBot = () => {
     }
   };
 
+  // New function to simulate module status reports (for testing)
+  const simulateModuleStatus = async (moduleType: string, hasError: boolean) => {
+    try {
+      const moduleData = {
+        module: moduleType,
+        status: 'active',
+        details: `${moduleType} is running`,
+        silent_errors: hasError ? [
+          { message: `${moduleType} API rate limit exceeded`, timestamp: new Date().toISOString(), code: 'RATE_LIMIT' },
+          { message: `${moduleType} node connection unstable`, timestamp: new Date().toISOString(), code: 'CONNECTION' }
+        ] : []
+      };
+
+      // Call the Edge Function to report module status
+      const { data, error } = await supabase.functions.invoke('profiter-two-bot-control', {
+        body: { action: 'reportModuleStatus', moduleData }
+      });
+
+      if (error) {
+        throw new Error(`Failed to report module status: ${error.message}`);
+      }
+
+      toast({
+        title: "Module Status Updated",
+        description: `${moduleType} status updated to ${hasError ? 'needs fix' : 'ok'}`,
+      });
+    } catch (error) {
+      console.error('Error reporting module status:', error);
+      toast({
+        title: "Failed to update module status",
+        description: error.message || "An error occurred while updating the module status",
+        variant: "destructive"
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-crypto-darker text-foreground font-mono flex items-center justify-center">
@@ -380,6 +418,35 @@ const ProfiterTwoBot = () => {
         
         <div className="mb-6">
           <BotModuleStatus botType="profiter-two" />
+          
+          {/* Testing controls - only visible in development */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mt-4 p-4 border border-dashed border-gray-500 rounded-md">
+              <h3 className="text-sm font-medium mb-2">Module Status Simulator (Development Only)</h3>
+              <div className="flex flex-wrap gap-2">
+                {['scanner', 'builder', 'executor', 'watcher'].map(module => (
+                  <div key={module} className="flex gap-2">
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={() => simulateModuleStatus(module, false)}
+                      className="border-green-500 text-green-500 hover:text-green-400 hover:border-green-400"
+                    >
+                      {module} OK
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => simulateModuleStatus(module, true)}
+                      className="border-orange-500 text-orange-500 hover:text-orange-400 hover:border-orange-400"
+                    >
+                      {module} Needs Fix
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         
         <div className="mb-6">

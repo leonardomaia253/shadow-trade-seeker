@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.1";
 
@@ -27,7 +28,7 @@ async function startBot(supabase, config) {
     updated_at: new Date().toISOString() 
   }).eq('bot_type', 'profiter-two');
 
-  // Create initial health check logs for each module
+  // Create initial health check logs for each module with enhanced status information
   const modules = ['scanner', 'builder', 'executor', 'watcher'];
   for (const module of modules) {
     await supabase.from('bot_logs').insert({
@@ -36,7 +37,19 @@ async function startBot(supabase, config) {
       category: 'health_check',
       bot_type: 'profiter-two',
       source: module,
-      metadata: { status: 'active', details: 'Module starting up' }
+      metadata: { 
+        status: 'active', 
+        details: 'Module starting up',
+        health: 'ok',
+        last_error: null,
+        last_checked: new Date().toISOString(),
+        silent_errors_count: 0,
+        performance_metrics: {
+          response_time_ms: 0,
+          success_rate: 100,
+          error_rate: 0
+        }
+      }
     });
   }
   
@@ -69,7 +82,12 @@ async function stopBot(supabase) {
       category: 'health_check',
       bot_type: 'profiter-two',
       source: module,
-      metadata: { status: 'inactive', details: 'Module stopped by user' }
+      metadata: { 
+        status: 'inactive', 
+        details: 'Module stopped by user',
+        health: 'inactive',
+        last_checked: new Date().toISOString()
+      }
     });
   }
   
@@ -99,6 +117,34 @@ async function updateBotConfig(supabase, config) {
   // and apply them on the next execution cycle
   
   return { success: true, message: "Configuration updated successfully" };
+}
+
+// Function to report module status (new function)
+async function reportModuleStatus(supabase, moduleData) {
+  const { module, status, details, silent_errors } = moduleData || {};
+  
+  // Determine health status based on module status and silent errors
+  const health = silent_errors && silent_errors.length > 0 ? 'needs_fix' : (status === 'active' ? 'ok' : status);
+  
+  // Insert the health check log with enhanced metadata
+  await supabase.from('bot_logs').insert({
+    level: silent_errors && silent_errors.length > 0 ? 'warn' : 'info',
+    message: `${module} health check: ${health}`,
+    category: 'health_check',
+    bot_type: 'profiter-two',
+    source: module,
+    metadata: {
+      status: status,
+      health: health,
+      details: details,
+      last_checked: new Date().toISOString(),
+      silent_errors: silent_errors || [],
+      silent_errors_count: silent_errors ? silent_errors.length : 0,
+      needs_attention: health === 'needs_fix'
+    }
+  });
+  
+  return { success: true, module, health };
 }
 
 // Function to get bot status and statistics
@@ -138,7 +184,7 @@ async function getBotStatus(supabase) {
     throw new Error(`Failed to fetch logs: ${logsError.message}`);
   }
 
-  // Get module health status
+  // Get module health status with enhanced details
   const { data: healthLogs, error: healthError } = await supabase
     .from('bot_logs')
     .select('*')
@@ -150,13 +196,22 @@ async function getBotStatus(supabase) {
   if (healthLogs) {
     const seenModules = new Set();
     healthLogs.forEach(log => {
-      const module = log.source;
-      if (module && !seenModules.has(module)) {
+      const module = log.source || 'unknown';
+      
+      // Only add if we haven't seen this module yet (since logs are ordered by timestamp desc)
+      if (!seenModules.has(module)) {
         seenModules.add(module);
+        
+        // Extract health status from metadata or determine from log
+        const health = log.metadata?.health || getHealthFromLog(log);
+        
         moduleStatus[module] = {
           status: log.metadata?.status || 'inactive',
+          health: health,
           lastChecked: log.timestamp,
-          details: log.metadata
+          details: log.metadata,
+          needsAttention: health === 'needs_fix',
+          silentErrors: log.metadata?.silent_errors || []
         };
       }
     });
@@ -172,6 +227,25 @@ async function getBotStatus(supabase) {
   };
 }
 
+// Helper function to determine health status from a log
+function getHealthFromLog(log) {
+  if (!log) return 'inactive';
+  
+  if (log.level === 'error' || log.level === 'critical') {
+    return 'error';
+  } else if (log.level === 'warn') {
+    // Check for silent errors in metadata
+    if (log.metadata?.silent_errors && log.metadata.silent_errors.length > 0) {
+      return 'needs_fix';
+    }
+    return 'warning';
+  } else if (log.level === 'info' || log.level === 'debug') {
+    return 'ok';
+  }
+  
+  return 'inactive';
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -185,7 +259,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
     
     // Get request body
-    const { action, config } = await req.json();
+    const { action, config, moduleData } = await req.json();
     
     let result;
     
@@ -199,6 +273,9 @@ serve(async (req) => {
         break;
       case 'updateConfig':
         result = await updateBotConfig(supabase, config);
+        break;
+      case 'reportModuleStatus':
+        result = await reportModuleStatus(supabase, moduleData);
         break;
       case 'status':
         result = await getBotStatus(supabase);
