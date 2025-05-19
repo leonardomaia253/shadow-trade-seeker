@@ -1,23 +1,14 @@
 
 import React from 'react';
-import { AlertTriangle, Check, Clock, Play, Power, Settings } from "lucide-react";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { TokenInfo } from "@/Arbitrum/utils/types";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-
-interface BotModuleStatus {
-  [key: string]: string;
-}
+import { Badge } from "@/components/ui/badge";
+import { Play, Pause, AlertTriangle, CheckCircle, WifiOff, Clock, Activity } from 'lucide-react';
+import { TokenInfo } from '@/Arbitrum/utils/types';
 
 interface GenericBotControlPanelProps {
   botType: string;
   isRunning: boolean;
-  isStarting?: boolean;
-  isStopping?: boolean;
   onStart: () => void;
   onStop: () => void;
   stats: {
@@ -29,204 +20,142 @@ interface GenericBotControlPanelProps {
   };
   baseToken: TokenInfo;
   profitThreshold: number;
-  moduleStatus?: BotModuleStatus;
-  lastUpdate?: string | null;
+  isStarting?: boolean;
+  isStopping?: boolean;
 }
 
 const GenericBotControlPanel: React.FC<GenericBotControlPanelProps> = ({
   botType,
   isRunning,
-  isStarting = false,
-  isStopping = false,
   onStart,
   onStop,
   stats,
   baseToken,
   profitThreshold,
-  moduleStatus = {},
-  lastUpdate
+  isStarting = false,
+  isStopping = false
 }) => {
-  const formatEth = (value: number) => {
-    return `${value.toFixed(6)} ${baseToken.symbol}`;
-  };
-
-  const getStatusBadge = () => {
-    if (isStarting) {
-      return <Badge variant="outline" className="bg-yellow-500 border-yellow-400 text-white">Starting...</Badge>;
-    }
-    if (isStopping) {
-      return <Badge variant="outline" className="bg-yellow-500 border-yellow-400 text-white">Stopping...</Badge>;
-    }
-    return isRunning ? (
-      <Badge variant="outline" className="bg-green-500 border-green-400 text-white">Running</Badge>
-    ) : (
-      <Badge variant="outline" className="bg-red-500 border-red-400 text-white">Stopped</Badge>
-    );
-  };
-
-  const getModuleStatusIcon = (status: string) => {
-    switch (status) {
-      case 'active':
-        return <Check className="h-4 w-4 text-green-400" />;
-      case 'warning':
-        return <AlertTriangle className="h-4 w-4 text-yellow-400" />;
-      case 'error':
-        return <AlertTriangle className="h-4 w-4 text-red-500" />;
-      case 'inactive':
-      default:
-        return <Power className="h-4 w-4 text-gray-400" />;
-    }
-  };
-
-  const getModuleStatusColor = (status: string) => {
-    switch (status) {
-      case 'active':
-        return "text-green-400";
-      case 'warning':
-        return "text-yellow-400";
-      case 'error':
-        return "text-red-500";
-      case 'inactive':
-      default:
-        return "text-gray-400";
-    }
+  // Format currency values to 4 decimal places
+  const formatCurrency = (value: number) => {
+    return value.toFixed(4);
   };
 
   return (
     <Card className="bg-crypto-card border-crypto-border shadow-glow-sm">
-      <CardHeader className="flex flex-row items-center justify-between pb-2 border-b border-crypto-border">
-        <CardTitle className="text-xl">{botType.charAt(0).toUpperCase() + botType.slice(1)} Bot Status</CardTitle>
-        <div className="flex items-center gap-2">
-          {getStatusBadge()}
-          <Tooltip>
-            <TooltipTrigger>
-              <Clock className="h-4 w-4 text-gray-400" />
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Last Updated: {lastUpdate || 'N/A'}</p>
-            </TooltipContent>
-          </Tooltip>
+      <CardHeader className="pb-2">
+        <div className="flex justify-between items-center">
+          <CardTitle className="text-xl flex items-center gap-2">
+            <Activity className="size-5" /> {botType.charAt(0).toUpperCase() + botType.slice(1)} Bot Control
+          </CardTitle>
+          <Badge 
+            className={`${isRunning ? 'bg-green-600' : isStarting ? 'bg-yellow-600' : isStopping ? 'bg-orange-600' : 'bg-red-600'} text-white px-3 py-1`}
+          >
+            {isRunning ? 'RUNNING' : isStarting ? 'STARTING' : isStopping ? 'STOPPING' : 'STOPPED'}
+          </Badge>
         </div>
       </CardHeader>
-      <CardContent className="pt-4">
-        <Tabs defaultValue="status">
-          <TabsList className="grid grid-cols-2 mb-4">
-            <TabsTrigger value="status">Status</TabsTrigger>
-            <TabsTrigger value="config">Configuration</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="status">
-            <div className="mb-4">
-              <h3 className="text-sm font-medium text-gray-400 mb-2">Module Status</h3>
-              <div className="grid grid-cols-3 gap-2">
-                {Object.keys(moduleStatus).length > 0 ? (
-                  Object.entries(moduleStatus).map(([module, status]) => (
-                    <div key={module} className="p-2 border rounded border-crypto-border flex items-center gap-2">
-                      {getModuleStatusIcon(status)}
-                      <div className="flex flex-col">
-                        <span className="text-xs font-medium">{module}</span>
-                        <span className={`text-xs ${getModuleStatusColor(status)}`}>{status}</span>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="col-span-3 text-sm text-gray-400">No module status available</div>
-                )}
-              </div>
+      <CardContent>
+        {/* Stats Summary */}
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="bg-crypto-darker p-4 rounded-md border border-crypto-border">
+            <p className="text-xs text-muted-foreground">Total Profit</p>
+            <p className="text-2xl font-bold text-neon-green">{formatCurrency(stats.totalProfit)} ETH</p>
+          </div>
+          <div className="bg-crypto-darker p-4 rounded-md border border-crypto-border">
+            <p className="text-xs text-muted-foreground">Success Rate</p>
+            <p className="text-2xl font-bold text-neon-blue">{stats.successRate.toFixed(1)}%</p>
+          </div>
+          <div className="bg-crypto-darker p-4 rounded-md border border-crypto-border">
+            <p className="text-xs text-muted-foreground">Transactions</p>
+            <p className="text-2xl font-bold text-neon-yellow">{stats.totalTxs}</p>
+          </div>
+        </div>
+        
+        {/* Current Configuration */}
+        <div className="mb-6 bg-crypto-darker p-4 rounded-md border border-crypto-border">
+          <h3 className="text-sm font-semibold mb-2 flex items-center gap-1">
+            <CheckCircle className="h-4 w-4 text-neon-green" /> Active Configuration
+          </h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs text-muted-foreground">Base Token</p>
+              <p className="text-sm">{baseToken.symbol} ({baseToken.address.substring(0, 6)}...{baseToken.address.substring(baseToken.address.length - 4)})</p>
             </div>
             <div>
-              <h3 className="text-sm font-medium text-gray-400 mb-2">Performance</h3>
-              <Table>
-                <TableBody>
-                  <TableRow>
-                    <TableCell className="py-1.5 text-sm font-medium">Total Profit</TableCell>
-                    <TableCell className="py-1.5 text-sm text-right">{formatEth(stats.totalProfit)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="py-1.5 text-sm font-medium">Success Rate</TableCell>
-                    <TableCell className="py-1.5 text-sm text-right">{stats.successRate}%</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="py-1.5 text-sm font-medium">Average Profit</TableCell>
-                    <TableCell className="py-1.5 text-sm text-right">{formatEth(stats.avgProfit)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="py-1.5 text-sm font-medium">Total Transactions</TableCell>
-                    <TableCell className="py-1.5 text-sm text-right">{stats.totalTxs}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="py-1.5 text-sm font-medium">Gas Spent</TableCell>
-                    <TableCell className="py-1.5 text-sm text-right">{formatEth(stats.gasSpent)}</TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
+              <p className="text-xs text-muted-foreground">Min. Profit Threshold</p>
+              <p className="text-sm">{profitThreshold} ETH</p>
             </div>
-          </TabsContent>
-          
-          <TabsContent value="config">
-            <Table>
-              <TableBody>
-                <TableRow>
-                  <TableCell className="py-1.5 text-sm font-medium">Base Token</TableCell>
-                  <TableCell className="py-1.5 text-sm text-right">{baseToken.symbol}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell className="py-1.5 text-sm font-medium">Min Profit Threshold</TableCell>
-                  <TableCell className="py-1.5 text-sm text-right">{profitThreshold} {baseToken.symbol}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell className="py-1.5 text-sm font-medium">Gas Multiplier</TableCell>
-                  <TableCell className="py-1.5 text-sm text-right">1.2x</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell className="py-1.5 text-sm font-medium">Slippage Tolerance</TableCell>
-                  <TableCell className="py-1.5 text-sm text-right">0.5%</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell className="py-1.5 text-sm font-medium">Target DEXs</TableCell>
-                  <TableCell className="py-1.5 text-sm text-right">Uniswap, SushiSwap</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </TabsContent>
-        </Tabs>
+          </div>
+        </div>
+        
+        {/* Control Buttons */}
+        <div className="flex gap-4">
+          <Button
+            variant="default"
+            className={`flex-1 ${isRunning || isStarting ? 'bg-gray-600 text-gray-300 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}
+            onClick={onStart}
+            disabled={isRunning || isStarting || isStopping}
+          >
+            {isStarting ? (
+              <>
+                <Clock className="mr-2 h-4 w-4 animate-spin" /> Starting...
+              </>
+            ) : (
+              <>
+                <Play className="mr-2 h-4 w-4" /> Start Bot
+              </>
+            )}
+          </Button>
+          <Button
+            variant="default"
+            className={`flex-1 ${!isRunning || isStopping ? 'bg-gray-600 text-gray-300 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'}`}
+            onClick={onStop}
+            disabled={!isRunning || isStopping || isStarting}
+          >
+            {isStopping ? (
+              <>
+                <Clock className="mr-2 h-4 w-4 animate-spin" /> Stopping...
+              </>
+            ) : (
+              <>
+                <Pause className="mr-2 h-4 w-4" /> Stop Bot
+              </>
+            )}
+          </Button>
+        </div>
+
+        {/* Connection Status */}
+        <div className="mt-6 text-center">
+          {isRunning ? (
+            <div className="flex items-center justify-center text-neon-green text-sm">
+              <Activity className="h-4 w-4 mr-1 animate-pulse" /> Bot is actively monitoring for opportunities
+            </div>
+          ) : isStarting ? (
+            <div className="flex items-center justify-center text-yellow-400 text-sm">
+              <Clock className="h-4 w-4 mr-1 animate-spin" /> Initializing bot modules...
+            </div>
+          ) : isStopping ? (
+            <div className="flex items-center justify-center text-orange-400 text-sm">
+              <Clock className="h-4 w-4 mr-1 animate-spin" /> Shutting down bot modules...
+            </div>
+          ) : (
+            <div className="flex items-center justify-center text-gray-400 text-sm">
+              <WifiOff className="h-4 w-4 mr-1" /> Bot is currently inactive
+            </div>
+          )}
+        </div>
+        
+        {/* Warning for live trading */}
+        <div className="mt-6 p-2 border border-yellow-500/30 bg-yellow-500/10 rounded-md">
+          <div className="flex items-start">
+            <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5 mr-2 flex-shrink-0" />
+            <p className="text-xs text-yellow-500/90">
+              This bot will execute real transactions on the Arbitrum network using your configured wallet. 
+              Make sure you have enough ETH for gas and transaction costs.
+            </p>
+          </div>
+        </div>
       </CardContent>
-      <CardFooter className="flex justify-between pt-2 border-t border-crypto-border">
-        <Button 
-          variant="outline" 
-          className="border-gray-600 text-gray-300"
-          size="sm"
-          onClick={onStart} 
-          disabled={isRunning || isStarting || isStopping}
-        >
-          {isStarting ? (
-            <>
-              <span className="animate-pulse mr-2">•</span>Starting...
-            </>
-          ) : (
-            <>
-              <Play className="mr-2 h-4 w-4" /> Start Bot
-            </>
-          )}
-        </Button>
-        <Button 
-          variant="outline" 
-          className="border-gray-600 text-gray-300"
-          size="sm"
-          onClick={onStop}
-          disabled={!isRunning || isStarting || isStopping}
-        >
-          {isStopping ? (
-            <>
-              <span className="animate-pulse mr-2">•</span>Stopping...
-            </>
-          ) : (
-            <>
-              <Power className="mr-2 h-4 w-4" /> Stop Bot
-            </>
-          )}
-        </Button>
-      </CardFooter>
     </Card>
   );
 };

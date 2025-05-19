@@ -31,8 +31,8 @@ export async function executeLiquidation({
       executionStep: "start",
       timestamp: new Date().toISOString(),
       params: {
-        debtAsset: opportunity.debtAsset?.address || opportunity.debtAsset,
-        collateralAsset: opportunity.collateralAsset?.address || opportunity.collateralAsset,
+        debtAsset: typeof opportunity.debtAsset === 'string' ? opportunity.debtAsset : opportunity.debtAsset?.address || '',
+        collateralAsset: typeof opportunity.collateralAsset === 'string' ? opportunity.collateralAsset : opportunity.collateralAsset?.address || '',
         debtAmount: opportunity.debtAmount?.toString() || "0",
       }
     });

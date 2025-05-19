@@ -1,4 +1,3 @@
-
 import dotenv from 'dotenv';
 import * as os from 'os'; // Import os module for system information
 import { enhancedLogger as baseLogger, createContextLogger } from '../../utils/enhancedLogger';
@@ -143,8 +142,6 @@ process.on('uncaughtException', (error) => {
       if (result.error) {
         console.error('Failed to log to database:', result.error);
       }
-    }).catch((err: Error) => {
-      console.error('Error inserting log:', err);
     });
   }
   
@@ -177,8 +174,6 @@ process.on('unhandledRejection', (reason, promise) => {
       if (result.error) {
         console.error('Failed to log to database:', result.error);
       }
-    }).catch((err: Error) => {
-      console.error('Error inserting log:', err);
     });
   }
 });
@@ -212,8 +207,6 @@ setInterval(() => {
       if (result.error) {
         console.error('Failed to log to database:', result.error);
       }
-    }).catch((err: Error) => {
-      console.error('Error inserting log:', err);
     });
   }
 }, 300000); // Every 5 minutes

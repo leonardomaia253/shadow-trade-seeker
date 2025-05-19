@@ -9,6 +9,7 @@ import BotConfiguration from '@/components/BotConfiguration';
 import BotPerformance from '@/components/BotPerformance';
 import BotLogsViewer from '@/components/BotLogsViewer';
 import BotNavigation from '@/components/BotNavigation';
+import BotModuleStatus from '@/components/BotModuleStatus';
 import { TokenInfo } from '@/Arbitrum/utils/types';
 
 // Define the bot statistics type to match the database schema
@@ -28,6 +29,8 @@ const FrontrunBot = () => {
   const { toast } = useToast();
   const [isRunning, setIsRunning] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isStarting, setIsStarting] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
   const [baseToken, setBaseToken] = useState<TokenInfo>({
     address: "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",
     symbol: "WETH",
@@ -133,6 +136,8 @@ const FrontrunBot = () => {
             });
             
             setIsRunning(newData.is_running || false);
+            setIsStarting(false);
+            setIsStopping(false);
           })
       .subscribe();
       
@@ -153,26 +158,91 @@ const FrontrunBot = () => {
   }, [toast]);
 
   const handleStartBot = async () => {
-    if (isRunning) return;
-    setIsRunning(true);
+    if (isRunning || isStarting) return;
+    
+    setIsStarting(true);
+    
+    try {
+      // Log bot start action
+      await supabase.from('bot_logs').insert({
+        level: 'info',
+        message: 'User initiated bot start',
+        category: 'user_action',
+        bot_type: 'frontrun',
+        source: 'ui',
+        metadata: { 
+          profitThreshold,
+          baseToken: baseToken.symbol
+        }
+      });
+      
+      // Update database status
+      await supabase.from('bot_statistics')
+        .update({ is_running: true, updated_at: new Date().toISOString() })
+        .eq('bot_type', 'frontrun');
+      
+      setIsRunning(true);
+      
+      toast({
+        title: "Bot Starting",
+        description: "The Frontrun Bot is initializing...",
+        variant: "default"
+      });
+    } catch (error) {
+      console.error('Error starting bot:', error);
+      toast({
+        title: "Failed to start bot",
+        description: "An error occurred while starting the bot",
+        variant: "destructive"
+      });
+      setIsStarting(false);
+    }
   };
 
   const handleStopBot = async () => {
-    if (!isRunning) return;
-    setIsRunning(false);
+    if (!isRunning || isStopping) return;
+    
+    setIsStopping(true);
+    
+    try {
+      // Log bot stop action
+      await supabase.from('bot_logs').insert({
+        level: 'info',
+        message: 'User initiated bot stop',
+        category: 'user_action',
+        bot_type: 'frontrun',
+        source: 'ui'
+      });
+      
+      // Update database status
+      await supabase.from('bot_statistics')
+        .update({ is_running: false, updated_at: new Date().toISOString() })
+        .eq('bot_type', 'frontrun');
+      
+      setIsRunning(false);
+      
+      toast({
+        title: "Bot Stopping",
+        description: "The Frontrun Bot is shutting down...",
+        variant: "default"
+      });
+    } catch (error) {
+      console.error('Error stopping bot:', error);
+      toast({
+        title: "Failed to stop bot",
+        description: "An error occurred while stopping the bot",
+        variant: "destructive"
+      });
+      setIsStopping(false);
+    }
   };
 
-  const handleUpdateConfig = (config: any) => {
+  const handleUpdateConfig = async (config: any) => {
     setBaseToken(config.baseToken);
     setProfitThreshold(config.profitThreshold);
     
-    toast({
-      title: "Configuration Updated",
-      description: "Bot configuration has been updated",
-    });
-    
     // Log configuration changes
-    const logConfigChange = async () => {
+    try {
       await supabase.from('bot_logs').insert({
         level: 'info',
         message: 'Bot configuration updated',
@@ -181,9 +251,18 @@ const FrontrunBot = () => {
         source: 'user',
         metadata: { baseToken: config.baseToken.symbol, profitThreshold: config.profitThreshold }
       });
-    };
-    
-    logConfigChange();
+      
+      toast({
+        title: "Configuration Updated",
+        description: "Bot configuration has been updated",
+      });
+    } catch (error) {
+      console.error('Error logging configuration update:', error);
+      toast({
+        title: "Configuration Updated",
+        description: "Settings saved, but logging failed",
+      });
+    }
   };
 
   if (isLoading) {
@@ -220,8 +299,14 @@ const FrontrunBot = () => {
               stats={stats}
               baseToken={baseToken}
               profitThreshold={profitThreshold}
+              isStarting={isStarting}
+              isStopping={isStopping}
             />
           </div>
+        </div>
+        
+        <div className="mb-6">
+          <BotModuleStatus botType="frontrun" />
         </div>
         
         <div className="mb-6">
