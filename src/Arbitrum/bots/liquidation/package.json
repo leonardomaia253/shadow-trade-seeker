@@ -1,0 +1,31 @@
+
+{
+  "name": "liquidation-bot",
+  "version": "1.0.0",
+  "description": "Liquidation trading bot for Arbitrum",
+  "main": "index.ts",
+  "scripts": {
+    "start": "ts-node index.ts",
+    "pm2": "pm2 start ecosystem.config.ts",
+    "pm2:stop": "pm2 stop liquidation-bot",
+    "pm2:logs": "pm2 logs liquidation-bot",
+    "pm2:status": "pm2 status liquidation-bot",
+    "pm2:monitor": "pm2 monit liquidation-bot",
+    "pm2:restart": "pm2 restart liquidation-bot",
+    "pm2:reload": "pm2 reload liquidation-bot"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.4",
+    "axios": "^1.9.0",
+    "dotenv": "^16.4.4",
+    "ethers": "^5.7.2",
+    "lru-cache": "^10.1.0", 
+    "liquidation-bot": "file:",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3",
+    "ws": "^8.16.0"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}

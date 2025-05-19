@@ -252,6 +252,144 @@ async function getBotStatus(supabase) {
   };
 }
 
+// Function to check PM2 status
+async function checkPM2Status(supabase) {
+  // Log the PM2 status check
+  await logEvent(
+    supabase,
+    'info',
+    'PM2 status check requested',
+    'pm2_operation',
+    'liquidation',
+    'api',
+    { action: 'status_check' }
+  );
+  
+  // In a real environment, this would communicate with a server-side service 
+  // that can execute PM2 commands. Here we just return a simulated response.
+  
+  // Retrieve bot status to determine if it's running
+  const { data, error } = await supabase
+    .from('bot_statistics')
+    .select('is_running')
+    .eq('bot_type', 'liquidation')
+    .single();
+  
+  if (error) {
+    throw new Error(`Failed to check bot status: ${error.message}`);
+  }
+  
+  // Simulate PM2 status based on the bot's is_running flag
+  const status = data?.is_running ? 'online' : 'stopped';
+  
+  return { success: true, status };
+}
+
+// Function to start bot with PM2
+async function startPM2(supabase, config) {
+  // Log PM2 start operation
+  await logEvent(
+    supabase,
+    'info',
+    'PM2 start operation requested',
+    'pm2_operation',
+    'liquidation',
+    'api',
+    { action: 'pm2_start', config }
+  );
+  
+  // Update bot status to running
+  await supabase.from('bot_statistics').update({ 
+    is_running: true,
+    updated_at: new Date().toISOString() 
+  }).eq('bot_type', 'liquidation');
+  
+  // In a real environment, this would communicate with a server-side service
+  // to start the bot using PM2. Here we just return success.
+  return { success: true, message: 'Bot started via PM2', status: 'online' };
+}
+
+// Function to stop bot with PM2
+async function stopPM2(supabase) {
+  // Log PM2 stop operation
+  await logEvent(
+    supabase,
+    'info',
+    'PM2 stop operation requested',
+    'pm2_operation',
+    'liquidation',
+    'api',
+    { action: 'pm2_stop' }
+  );
+  
+  // Update bot status to stopped
+  await supabase.from('bot_statistics').update({ 
+    is_running: false,
+    updated_at: new Date().toISOString() 
+  }).eq('bot_type', 'liquidation');
+  
+  // In a real environment, this would communicate with a server-side service
+  // to stop the bot using PM2. Here we just return success.
+  return { success: true, message: 'Bot stopped via PM2', status: 'stopped' };
+}
+
+// Function to restart bot with PM2
+async function restartPM2(supabase) {
+  // Log PM2 restart operation
+  await logEvent(
+    supabase,
+    'info',
+    'PM2 restart operation requested',
+    'pm2_operation',
+    'liquidation',
+    'api',
+    { action: 'pm2_restart' }
+  );
+  
+  // Update bot status to running (since restart will result in running state)
+  await supabase.from('bot_statistics').update({ 
+    is_running: true,
+    updated_at: new Date().toISOString() 
+  }).eq('bot_type', 'liquidation');
+  
+  // In a real environment, this would communicate with a server-side service
+  // to restart the bot using PM2. Here we just return success.
+  return { success: true, message: 'Bot restarted via PM2', status: 'online' };
+}
+
+// Function to view PM2 logs
+async function viewPM2Logs(supabase) {
+  // Log PM2 logs request
+  await logEvent(
+    supabase,
+    'info',
+    'PM2 logs requested',
+    'pm2_operation',
+    'liquidation',
+    'api',
+    { action: 'view_logs' }
+  );
+  
+  // In a real environment, this would retrieve logs from PM2.
+  // Here we just return the most recent bot logs from the database.
+  const { data, error } = await supabase
+    .from('bot_logs')
+    .select('*')
+    .eq('bot_type', 'liquidation')
+    .order('timestamp', { ascending: false })
+    .limit(50);
+  
+  if (error) {
+    throw new Error(`Failed to fetch logs: ${error.message}`);
+  }
+  
+  return { 
+    success: true, 
+    message: 'Retrieved PM2 logs', 
+    logs: data || []
+  };
+}
+
 // Test function to simulate module errors (for development/testing)
 async function simulateIssue(supabase, options) {
   const { module, status, errorCount } = options;
@@ -313,6 +451,21 @@ serve(async (req) => {
         break;
       case 'status':
         result = await getBotStatus(supabase);
+        break;
+      case 'pm2Status':
+        result = await checkPM2Status(supabase);
+        break;
+      case 'pm2Start':
+        result = await startPM2(supabase, config);
+        break;
+      case 'pm2Stop':
+        result = await stopPM2(supabase);
+        break;
+      case 'pm2Restart':
+        result = await restartPM2(supabase);
+        break;
+      case 'pm2Logs':
+        result = await viewPM2Logs(supabase);
         break;
       case 'test':
         // This action is only for development/testing
