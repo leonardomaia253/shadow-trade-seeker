@@ -8,9 +8,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Define module types
-const BOT_MODULES = ['scanner', 'builder', 'executor', 'watcher'];
-
 // Function to start the arbitrage bot
 async function startBot(supabase, config) {
   const { baseToken, profitThreshold, gasMultiplier, maxGasPrice } = config || {};
@@ -32,7 +29,8 @@ async function startBot(supabase, config) {
   }).eq('bot_type', 'arbitrage');
 
   // Create initial health check logs for each module
-  for (const module of BOT_MODULES) {
+  const modules = ['scanner', 'builder', 'executor', 'watcher'];
+  for (const module of modules) {
     await supabase.from('bot_logs').insert({
       level: 'info',
       message: `${module} initializing`,
@@ -41,50 +39,9 @@ async function startBot(supabase, config) {
       source: module,
       metadata: { status: 'inactive', details: 'Module starting up' }
     });
-    
-    // After a short delay, update to "ok" status to simulate module startup
-    setTimeout(async () => {
-      await supabase.from('bot_logs').insert({
-        level: 'info',
-        message: `${module} started successfully`,
-        category: 'health_check',
-        bot_type: 'arbitrage',
-        source: module,
-        metadata: { status: 'ok', details: 'Module running normally' }
-      });
-    }, 2000 + Math.random() * 3000); // Stagger the updates
   }
   
-  // Set up periodic health checks for modules
-  startPeriodicHealthChecks(supabase);
-  
   return { success: true, message: "Bot started successfully" };
-}
-
-// Function to simulate periodic health checks
-function startPeriodicHealthChecks(supabase) {
-  // This would be implemented in the actual bot service
-  // Here we just simulate it with a one-time update after a delay
-  setTimeout(async () => {
-    for (const module of BOT_MODULES) {
-      await supabase.from('bot_logs').insert({
-        level: 'info',
-        message: `${module} health check`,
-        category: 'health_check',
-        bot_type: 'arbitrage',
-        source: module,
-        metadata: { 
-          status: 'ok', 
-          details: 'Periodic health check passed',
-          metrics: {
-            memory: Math.floor(Math.random() * 500) + 200 + "MB",
-            cpu: Math.floor(Math.random() * 40) + 10 + "%",
-            uptime: Math.floor(Math.random() * 3600) + 300 + "s"
-          }
-        }
-      });
-    }
-  }, 10000);
 }
 
 // Function to stop the arbitrage bot
@@ -105,7 +62,8 @@ async function stopBot(supabase) {
   }).eq('bot_type', 'arbitrage');
 
   // Update health check logs for each module
-  for (const module of BOT_MODULES) {
+  const modules = ['scanner', 'builder', 'executor', 'watcher'];
+  for (const module of modules) {
     await supabase.from('bot_logs').insert({
       level: 'info',
       message: `${module} stopped`,

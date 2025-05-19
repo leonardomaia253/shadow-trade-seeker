@@ -145,151 +145,43 @@ const ArbitrageBot = () => {
   }, [toast]);
 
   const handleStartBot = async () => {
-    if (isRunning || isStarting) return;
+    if (isRunning) return;
     
     enhancedLogger.info("Starting arbitrage bot");
+    setIsRunning(true);
     setIsStarting(true);
-    
-    try {
-      // Log UI action
-      await supabase.from('bot_logs').insert({
-        level: 'info',
-        message: 'Start button clicked',
-        category: 'user_action',
-        bot_type: 'arbitrage',
-        source: 'user'
-      });
-      
-      // Call the edge function to start the bot with configuration
-      const { data, error } = await supabase.functions.invoke('arbitrage-bot-control', {
-        body: {
-          action: 'start',
-          config: {
-            baseToken: baseToken,
-            profitThreshold: profitThreshold
-          }
-        }
-      });
-      
-      if (error) throw error;
-      
-      toast({
-        title: "Bot Started",
-        description: "Arbitrage bot is now running and searching for opportunities",
-      });
-      
-      setIsRunning(true);
-    } catch (err: any) {
-      console.error("Failed to start bot:", err);
-      
-      // Log the error
-      await supabase.from('bot_logs').insert({
-        level: 'error',
-        message: `Failed to start bot: ${err.message || 'Unknown error'}`,
-        category: 'user_action',
-        bot_type: 'arbitrage',
-        source: 'user',
-        metadata: { error: err.message, stack: err.stack }
-      });
-      
-      toast({
-        title: "Failed to start bot",
-        description: err.message || "An error occurred",
-        variant: "destructive"
-      });
-      setIsRunning(false);
-    } finally {
-      setIsStarting(false);
-    }
   };
 
   const handleStopBot = async () => {
-    if (!isRunning || isStopping) return;
+    if (!isRunning) return;
     
     enhancedLogger.info("Stopping arbitrage bot");
+    setIsRunning(false);
     setIsStopping(true);
-    
-    try {
-      // Log UI action
-      await supabase.from('bot_logs').insert({
-        level: 'info',
-        message: 'Stop button clicked',
-        category: 'user_action',
-        bot_type: 'arbitrage',
-        source: 'user'
-      });
-      
-      // Call the edge function to stop the bot
-      const { data, error } = await supabase.functions.invoke('arbitrage-bot-control', {
-        body: {
-          action: 'stop'
-        }
-      });
-      
-      if (error) throw error;
-      
-      toast({
-        title: "Bot Stopped",
-        description: "Arbitrage bot has been stopped",
-      });
-      
-      setIsRunning(false);
-    } catch (err: any) {
-      console.error("Failed to stop bot:", err);
-      
-      // Log the error
-      await supabase.from('bot_logs').insert({
-        level: 'error',
-        message: `Failed to stop bot: ${err.message || 'Unknown error'}`,
-        category: 'user_action', 
-        bot_type: 'arbitrage',
-        source: 'user',
-        metadata: { error: err.message, stack: err.stack }
-      });
-      
-      toast({
-        title: "Failed to stop bot",
-        description: err.message || "An error occurred",
-        variant: "destructive"
-      });
-      setIsRunning(true);
-    } finally {
-      setIsStopping(false);
-    }
   };
 
   const handleUpdateConfig = async (config: any) => {
     setBaseToken(config.baseToken);
     setProfitThreshold(config.profitThreshold);
     
-    try {
-      // Call the edge function to update the bot configuration
-      const { data, error } = await supabase.functions.invoke('arbitrage-bot-control', {
-        body: {
-          action: 'updateConfig',
-          config: {
-            baseToken: config.baseToken,
-            profitThreshold: config.profitThreshold
-          }
-        }
+    toast({
+      title: "Configuration Updated",
+      description: "Bot configuration has been updated",
+    });
+    
+    // Log configuration changes
+    const logConfigChange = async () => {
+      await supabase.from('bot_logs').insert({
+        level: 'info',
+        message: 'Bot configuration updated',
+        category: 'configuration',
+        bot_type: 'arbitrage',
+        source: 'user',
+        metadata: { baseToken: config.baseToken.symbol, profitThreshold: config.profitThreshold }
       });
-      
-      if (error) throw error;
-      
-      toast({
-        title: "Configuration Updated",
-        description: "Bot configuration has been updated",
-      });
-      
-    } catch (err: any) {
-      console.error("Failed to update configuration:", err);
-      
-      toast({
-        title: "Failed to update configuration",
-        description: err.message || "An error occurred",
-        variant: "destructive"
-      });
-    }
+    };
+    
+    logConfigChange();
   };
 
   if (isLoading) {
