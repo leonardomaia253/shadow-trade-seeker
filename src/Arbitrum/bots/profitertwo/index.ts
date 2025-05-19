@@ -1,3 +1,4 @@
+
 import { ethers } from "ethers";
 import "dotenv/config";
 import { createResilientProvider } from "../../config/resilientProvider";
@@ -21,6 +22,7 @@ import { handleError, CircuitBreaker } from "../../utils/errorHandler";
 import { validateTransaction, RateLimiter } from "../../utils/securityUtils";
 import { createContextLogger } from "../../utils/enhancedLogger";
 import { startHealthServer, updateBotMetrics, updateBotStatus, registerShutdownHandlers } from "../../utils/healthMonitor";
+import { createBotModuleLogger, checkDependencies } from "../../utils/botLogger";
 
 // Initialize Supabase client for database interaction
 const supabaseUrl = process.env.SUPABASE_URL!;
@@ -31,6 +33,31 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const log = createContextLogger({
   botType: "profiter-two",
   source: "main"
+});
+
+// Create module-specific loggers
+const scannerLogger = createBotModuleLogger({
+  botType: "profiter-two",
+  module: "scanner",
+  supabase
+});
+
+const builderLogger = createBotModuleLogger({
+  botType: "profiter-two",
+  module: "builder",
+  supabase
+});
+
+const simulationLogger = createBotModuleLogger({
+  botType: "profiter-two",
+  module: "simulation",
+  supabase
+});
+
+const executionLogger = createBotModuleLogger({
+  botType: "profiter-two",
+  module: "executor",
+  supabase
 });
 
 // Configuration with defaults and environment variables
@@ -127,10 +154,20 @@ async function checkBotConfig() {
  */
 async function validateOpportunity(route: any, calls: any[]) {
   return simulationCircuitBreaker.execute(async () => {
+    simulationLogger.logInitialization({
+      routeLength: route.route.length,
+      callsCount: calls.length
+    });
+    
     try {
       // Verifica o preço atual do gás
       const gasPrice = await provider.getGasPrice();
       const gasPriceGwei = parseFloat(ethers.utils.formatUnits(gasPrice, "gwei"));
+      
+      simulationLogger.logSimulation("Checking gas price", { 
+        gasPriceGwei, 
+        maxAllowed: MAX_GAS_PRICE 
+      }, gasPriceGwei <= MAX_GAS_PRICE);
       
       if (gasPriceGwei > MAX_GAS_PRICE) {
         log.warn(`Gas price too high: ${gasPriceGwei} gwei > ${MAX_GAS_PRICE} gwei`, { 
@@ -142,6 +179,10 @@ async function validateOpportunity(route: any, calls: any[]) {
       }
       
       // Validate each transaction in the calls
+      simulationLogger.logSimulation("Validating transaction calls", {
+        callsCount: calls.length
+      }, true);
+      
       for (const call of calls) {
         const validation = await validateTransaction(
           provider, 
@@ -153,10 +194,17 @@ async function validateOpportunity(route: any, calls: any[]) {
         );
         
         if (!validation.valid) {
+          simulationLogger.logSimulation("Transaction validation failed", { 
+            reason: validation.reason,
+            to: call.to 
+          }, false);
+          
           log.warn(`Transaction validation failed: ${validation.reason}`, { category: "security" });
           return false;
         }
       }
+      
+      simulationLogger.logSimulation("All transactions validated successfully", {}, true);
       
       // Simula a transação usando Tenderly
       // Fix type issue by creating a JSON-RPC compatible transaction object
@@ -167,6 +215,10 @@ async function validateOpportunity(route: any, calls: any[]) {
       
       // Create serialized transactions with minimal fields required for Tenderly simulation
       // This avoids the Provider vs JsonRpcProvider type issue
+      simulationLogger.logSimulation("Preparing Tenderly simulation", {
+        bundleSize: bundleTxs.length
+      }, true);
+      
       const simulationTransactions = bundleTxs.map(tx => {
         const txData = {
           to: tx.transaction.to,
@@ -186,7 +238,16 @@ async function validateOpportunity(route: any, calls: any[]) {
         });
       });
       
+      simulationLogger.logSimulation("Running Tenderly simulation", {
+        transactionCount: simulationTransactions.length
+      }, true);
+      
       const simulationResult = await simulateBundleWithTenderly(simulationTransactions);
+      
+      simulationLogger.logSimulation("Tenderly simulation completed", { 
+        success: simulationResult.success,
+        hasError: !!simulationResult.error
+      }, simulationResult.success);
       
       if (!simulationResult.success) {
         log.warn("Tenderly simulation failed", { 
@@ -197,6 +258,10 @@ async function validateOpportunity(route: any, calls: any[]) {
       }
       
       // Valida o lucro novamente por simulação
+      simulationLogger.logSimulation("Simulating profit", {
+        tokenAddress: route.route[0].tokenIn.address
+      }, true);
+      
       const profit = await simulateTokenProfit({
         provider,
         executorAddress,
@@ -205,7 +270,15 @@ async function validateOpportunity(route: any, calls: any[]) {
       });
       
       const minExpectedProfit = ethers.utils.parseUnits(currentProfitThreshold.toString(), 18);
-      if (profit.lt(minExpectedProfit)) {
+      const isProfitable = profit.gte(minExpectedProfit);
+      
+      simulationLogger.logSimulation("Profit simulation results", {
+        simulated: ethers.utils.formatEther(profit),
+        threshold: currentProfitThreshold,
+        isProfitable
+      }, isProfitable);
+      
+      if (!isProfitable) {
         log.warn(`Simulated profit ${ethers.utils.formatEther(profit)} ETH below threshold ${currentProfitThreshold} ETH`, {
           category: "profit",
           simulated: ethers.utils.formatEther(profit),
@@ -215,7 +288,11 @@ async function validateOpportunity(route: any, calls: any[]) {
       }
       
       return true;
-    } catch (error) {
+    } catch (error: any) {
+      simulationLogger.logModuleError(error, {
+        operation: "validateOpportunity"
+      });
+      
       log.error("Error validating opportunity", {
         error: error.message,
         stack: error.stack,
@@ -231,6 +308,11 @@ async function validateOpportunity(route: any, calls: any[]) {
  */
 function selectArbitrageTokens(allTokens: TokenInfo[]) {
   try {
+    scannerLogger.logScan("Selecting arbitrage tokens", {
+      totalTokens: allTokens.length,
+      historicalRoutes: previousSuccessfulRoutes.size
+    });
+    
     // Prioriza tokens com histórico de sucesso
     const scoredTokens = allTokens.map(token => {
       const routeKey = token.address;
@@ -250,6 +332,10 @@ function selectArbitrageTokens(allTokens: TokenInfo[]) {
     const liquidAddresses = new Set(LIQUID_TOKENS.map(addr => addr.toLowerCase()));
     const liquidTokens = allTokens.filter(token => liquidAddresses.has(token.address.toLowerCase()));
     
+    scannerLogger.logScan("Liquid tokens identified", {
+      liquidTokensCount: liquidTokens.length
+    });
+    
     // Combina os resultados (top scored + tokens líquidos conhecidos)
     const topScored = scoredTokens.slice(0, 20).map(item => item.token);
     const combinedTokens = [...topScored];
@@ -260,8 +346,18 @@ function selectArbitrageTokens(allTokens: TokenInfo[]) {
       }
     }
     
+    scannerLogger.logScan("Token selection completed", {
+      selectedTokens: combinedTokens.length,
+      topScoredCount: topScored.length,
+      liquidTokensAdded: combinedTokens.length - topScored.length
+    });
+    
     return combinedTokens;
-  } catch (error) {
+  } catch (error: any) {
+    scannerLogger.logModuleError(error, {
+      operation: "selectArbitrageTokens"
+    });
+    
     log.error("Error selecting arbitrage tokens", { 
       error: error.message,
       category: "token_selection"
@@ -304,13 +400,26 @@ async function executeCycle() {
         cycle: runCount 
       });
       
+      scannerLogger.logScan("Starting token fetch", {
+        cycle: runCount,
+        timestamp: new Date().toISOString()
+      });
+      
       const tokenList = await fetchTopTokensArbitrum(200);
 
       if (tokenList.length === 0) {
+        scannerLogger.logModuleError(new Error("Empty token list returned"), {
+          operation: "fetchTopTokensArbitrum"
+        });
+        
         log.error("Empty token list, aborting cycle", { category: "scan" });
         return;
       }
 
+      scannerLogger.logScan("Tokens loaded successfully", { 
+        tokenCount: tokenList.length 
+      });
+      
       log.info(`Tokens loaded: ${tokenList.length}. Running arbitrage search...`, { 
         category: "scan",
         tokenCount: tokenList.length 
@@ -318,9 +427,15 @@ async function executeCycle() {
 
       // Select most promising tokens for arbitrage
       const selectedTokens = selectArbitrageTokens(tokenList);
+      
       log.info(`Analyzing ${selectedTokens.length} selected tokens for arbitrage`, { 
         category: "scan",
         selectedCount: selectedTokens.length 
+      });
+
+      scannerLogger.logScan("Starting multi-hop route search", {
+        baseToken: currentBaseToken.symbol,
+        selectedTokens: selectedTokens.length
       });
 
       const bestRoute = await findBestMultiHopRoute({
@@ -331,6 +446,14 @@ async function executeCycle() {
 
       if (bestRoute) {
         const profitInETH = parseFloat(ethers.utils.formatUnits(bestRoute.netProfit, currentBaseToken.decimals));
+
+        scannerLogger.logScan("Route search completed", {
+          foundProfitableRoute: true,
+          profitInETH,
+          threshold: currentProfitThreshold,
+          isProfitable: profitInETH >= currentProfitThreshold,
+          hopCount: bestRoute.route.length
+        });
 
         if (profitInETH < currentProfitThreshold) {
           log.info(`Profit ${profitInETH} ETH below minimum threshold. Ignoring...`, { 
@@ -357,8 +480,33 @@ async function executeCycle() {
           return;
         }
 
+        builderLogger.logInitialization({
+          routeSize: bestRoute.route.length,
+          estimatedProfit: profitInETH
+        });
+        
+        builderLogger.logBuild("Converting route to swap steps", {
+          route: bestRoute.route.map(swap => ({
+            tokenIn: swap.tokenIn.symbol,
+            tokenOut: swap.tokenOut.symbol,
+            dex: swap.dex
+          }))
+        });
+        
         const route = await convertRouteToSwapSteps(bestRoute.route);
+        
+        builderLogger.logBuild("Building orchestration from route", {
+          swapSteps: route.length,
+          executor: executorAddress
+        });
+        
         const {calls, flashLoanToken, flashLoanAmount} = await buildOrchestrationFromRoute({route, executor:executorAddress });
+        
+        builderLogger.logBuild("Orchestration built successfully", {
+          callsCount: Array.isArray(calls) ? calls.length : 1,
+          flashLoanToken,
+          flashLoanAmount: flashLoanAmount.toString()
+        });
         
         // Validate opportunity before executing
         const isValid = await validateOpportunity(bestRoute, calls);
@@ -368,6 +516,10 @@ async function executeCycle() {
         }
         
         // Estimate actual profit using simulation
+        simulationLogger.logSimulation("Estimating final profit", {
+          tokenAddress: flashLoanToken
+        }, true);
+        
         const profit = await simulateTokenProfit({
           provider,
           executorAddress,
@@ -376,6 +528,17 @@ async function executeCycle() {
         });
         
         // Build call to swap remaining profit to ETH
+        executionLogger.logInitialization({
+          tokenAddress: flashLoanToken,
+          profit: profit.toString()
+        });
+        
+        executionLogger.logExecution("Building swap to ETH call", {
+          tokenIn: flashLoanToken,
+          amountIn: profit.toString(),
+          recipient: executorAddress
+        }, true);
+        
         const SwapRemainingtx = await buildSwapToETHCall({ 
           tokenIn: flashLoanToken, 
           amountIn: profit, 
@@ -383,6 +546,7 @@ async function executeCycle() {
         });
         
         // Get WETH balance for unwrapping
+        executionLogger.logExecution("Getting WETH balance for unwrap", {}, true);
         const wethBalanceRaw = await getWETHBalance({ provider });
         // Handle whether wethBalanceRaw is string or BigNumber
         let wethBalance: BigNumber;
@@ -394,6 +558,10 @@ async function executeCycle() {
           wethBalance = BigNumber.from(wethBalanceRaw);
         }
         
+        executionLogger.logExecution("Building unwrap WETH call", {
+          wethBalance: wethBalance.toString()
+        }, true);
+        
         const unwrapCall = buildUnwrapWETHCall({ amount: wethBalance });
         
         // Build final transaction bundle
@@ -404,11 +572,24 @@ async function executeCycle() {
           transaction: {to: tx.to, data: tx.data, gasLimit: 500_000}
         }));
         
+        executionLogger.logExecution("Bundle prepared for execution", {
+          transactionsCount: bundleTxs.length
+        }, true);
+        
         try {
           return await executionCircuitBreaker.execute(async () => {
             // Send bundle for execution
             log.info("Sending transaction bundle...", { category: "execution" });
+            
+            executionLogger.logExecution("Sending transaction bundle", {
+              transactionCount: bundleTxs.length
+            }, true);
+            
             const bundleResult = await sendBundle(bundleTxs, provider);
+            
+            executionLogger.logExecution("Bundle sent successfully", {
+              bundleResult
+            }, true);
             
             log.info("Bundle sent successfully! Awaiting confirmation...", { 
               category: "execution",
@@ -429,6 +610,11 @@ async function executeCycle() {
             successCount++;
             lastSuccessfulArbitrage = Date.now();
             totalProfit = totalProfit.add(BigNumber.from(bestRoute.netProfit));
+
+            executionLogger.logExecution("Transaction executed successfully", {
+              profit: profitInETH,
+              path: bestRoute.route.map(swap => `${swap.tokenIn.symbol} -> ${swap.tokenOut.symbol}`).join(', ')
+            }, true);
 
             await supabase.from("bot_logs").insert({
               level: "info",
@@ -493,6 +679,10 @@ async function executeCycle() {
             return true;
           }, "executeArbitrage");
         } catch (err: any) {
+          executionLogger.logModuleError(err, {
+            operation: "sendBundle"
+          });
+          
           log.error("Error executing arbitrage", {
             category: "execution",
             error: err.message,
@@ -511,6 +701,10 @@ async function executeCycle() {
           return false;
         }
       } else {
+        scannerLogger.logScan("No profitable arbitrage found", {
+          cycle: runCount
+        });
+        
         log.info("No profitable arbitrage found in this cycle", { category: "scan" });
         return false;
       }
@@ -571,6 +765,75 @@ async function loop() {
     
     // Register shutdown handlers
     registerShutdownHandlers(gracefulShutdown);
+    
+    // Initialize all loggers
+    scannerLogger.logInitialization({
+      timestamp: new Date().toISOString()
+    });
+    
+    builderLogger.logInitialization({
+      timestamp: new Date().toISOString()
+    });
+    
+    simulationLogger.logInitialization({
+      timestamp: new Date().toISOString()
+    });
+    
+    executionLogger.logInitialization({
+      timestamp: new Date().toISOString()
+    });
+    
+    // Check critical dependencies
+    await checkDependencies({
+      botType: "profiter-two",
+      provider,
+      supabase,
+      dependencies: [
+        {
+          name: "flashloan-contracts",
+          check: async () => {
+            try {
+              const code = await provider.getCode(executorAddress);
+              return code !== '0x';
+            } catch {
+              return false;
+            }
+          }
+        },
+        {
+          name: "tenderly-api",
+          check: async () => {
+            try {
+              const testTx = ethers.utils.serializeTransaction({
+                to: executorAddress,
+                data: "0x",
+                gasLimit: 100000,
+                gasPrice: ethers.utils.parseUnits("1", "gwei").toHexString(),
+                nonce: 0,
+                chainId: 42161,
+                value: "0x0",
+              }, { r: "0x", s: "0x", v: 27 });
+              
+              const result = await simulateBundleWithTenderly([testTx]);
+              return result.success || result.results !== undefined;
+            } catch {
+              return false;
+            }
+          }
+        },
+        {
+          name: "supabase-connection",
+          check: async () => {
+            try {
+              const { error } = await supabase.from('bot_statistics').select('id').limit(1);
+              return !error;
+            } catch {
+              return false;
+            }
+          }
+        }
+      ]
+    });
     
     // Initial configuration load
     try {

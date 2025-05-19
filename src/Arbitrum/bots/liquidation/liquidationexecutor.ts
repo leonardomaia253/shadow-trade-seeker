@@ -5,6 +5,13 @@ import { buildLiquidationBundle } from "./liquidationbuilder";
 import { LiquidationOpportunity } from "../../utils/types";
 import { sendBundle } from "../../executor/sendBundle";
 import { simulateBundleWithTenderly } from "../../utils/Tenderlysimulation";
+import { createContextLogger } from "../../utils/enhancedLogger";
+
+// Create logger for this module
+const log = createContextLogger({
+  botType: "liquidation",
+  source: "executor"
+});
 
 export async function executeLiquidation({
   provider,
@@ -16,7 +23,14 @@ export async function executeLiquidation({
   opportunity: LiquidationOpportunity;
 }): Promise<boolean> {
   try {
+    log.info("Starting liquidation execution", {
+      category: "execution",
+      protocol: opportunity.protocol,
+      user: opportunity.userAddress
+    });
+    
     const blockNumber = await provider.getBlockNumber();
+    log.debug("Current block number", { category: "blockchain", blockNumber });
 
     // Ensure all values are strings to match expected interface
     const collateralAsset = typeof opportunity.collateralAsset === 'string' 
@@ -27,7 +41,14 @@ export async function executeLiquidation({
       ? opportunity.debtAsset 
       : opportunity.debtAsset.address;
 
-    // Montar bundle com lógica off-chain
+    log.info("Building liquidation bundle", {
+      category: "build",
+      collateralAsset,
+      debtAsset,
+      debtAmount: opportunity.debtAmount?.toString()
+    });
+    
+    // Build bundle with off-chain logic
     const bundleTx = await buildLiquidationBundle({
       signer,
       collateralAsset,
@@ -41,7 +62,12 @@ export async function executeLiquidation({
       protocol: opportunity.protocol as "aave" | "compound" | "morpho" | "venus" | "spark",
     });
 
-    // Assinar transação
+    log.debug("Liquidation bundle built successfully", {
+      category: "build",
+      target: bundleTx.target
+    });
+
+    // Populate transaction
     const txRequest = await signer.populateTransaction({
       to: bundleTx.target,
       data: bundleTx.callData,
@@ -53,25 +79,42 @@ export async function executeLiquidation({
       type: 2,
     });
     
-    // Assinar a transação para obter o rawTx
+    log.info("Signing transaction", { category: "execution" });
+    // Sign the transaction to obtain the rawTx
     const signedTx = await signer.signTransaction(txRequest);
     
-    // Simulação com Tenderly (pode aceitar txRequest ou rawTx dependendo da sua função)
-    const sim = await simulateBundleWithTenderly([signedTx], "42161");
+    log.info("Simulating liquidation with Tenderly", { category: "simulation" });
+    // Simulation with Tenderly (using the updated function that accepts a serialized tx string)
+    const sim = await simulateBundleWithTenderly([signedTx]);
+    
     if (!sim.success) {
-      console.warn("❌ Bundle reprovado na simulação, abortando.");
+      log.warn("Bundle failed in simulation, aborting", {
+        category: "simulation",
+        error: sim.error
+      });
       return false;
     }
     
-    // Enviar bundle com a transação assinada (como array de raw txs)
+    log.info("Simulation successful, sending bundle", { category: "execution" });
+    // Send bundle with the signed transaction (as array of raw txs)
     await sendBundle(
       [{ signer, transaction: { raw: signedTx } }],
       provider
     );
     
+    log.info("Liquidation bundle sent successfully", {
+      category: "execution",
+      protocol: opportunity.protocol,
+      user: opportunity.userAddress
+    });
+    
     return true;
-  } catch (error) {
-    console.error("Error executing liquidation:", error);
+  } catch (error: any) {
+    log.error("Error executing liquidation", {
+      category: "exception", 
+      error: error.message,
+      stack: error.stack
+    });
     return false;
   }
 }

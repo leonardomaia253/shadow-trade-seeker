@@ -1,15 +1,42 @@
+
 import dotenv from 'dotenv';
 import * as os from 'os'; // Import os module for system information
 import { enhancedLogger as baseLogger, createContextLogger } from '../../utils/enhancedLogger';
+import { createBotModuleLogger, checkDependencies } from '../../utils/botLogger';
+import { createClient } from "@supabase/supabase-js";
 import './frontrunwatcher';
 
 // Load environment variables
 dotenv.config();
 
+// Initialize Supabase client for database interaction
+const supabaseUrl = process.env.SUPABASE_URL!;
+const supabaseKey = process.env.SUPABASE_KEY!;
+const supabase = process.env.SUPABASE_URL ? createClient(supabaseUrl, supabaseKey) : null;
+
 // Create a context-aware logger for this bot
 const log = createContextLogger({
   botType: 'frontrun',
   source: 'main'
+});
+
+// Create module loggers
+const watcherLogger = createBotModuleLogger({
+  botType: 'frontrun',
+  module: 'watcher',
+  supabase: supabase
+});
+
+const builderLogger = createBotModuleLogger({
+  botType: 'frontrun',
+  module: 'builder',
+  supabase: supabase
+});
+
+const executorLogger = createBotModuleLogger({
+  botType: 'frontrun',
+  module: 'executor',
+  supabase: supabase
 });
 
 // Start message with more detailed information
@@ -31,11 +58,63 @@ try {
     nodeVersion: version,
     platform,
     architecture: arch,
-    cpuCores: os.cpus().length, // Use os.cpus() instead of process.cpus()
+    cpuCores: os.cpus().length,
     memory: `${Math.round(process.memoryUsage().heapTotal / 1024 / 1024)} MB`
   });
 } catch (err) {
   log.debug('Could not log system information', { category: 'system' });
+}
+
+// Initialize all loggers for modules
+watcherLogger.logInitialization({
+  timestamp: new Date().toISOString(),
+  minProfitEth: process.env.MIN_PROFIT_ETH,
+});
+
+builderLogger.logInitialization({
+  timestamp: new Date().toISOString(),
+});
+
+executorLogger.logInitialization({
+  timestamp: new Date().toISOString(),
+});
+
+// Check critical dependencies if we have Supabase configured
+if (supabase) {
+  // We'll use a dummy ethers provider for the dependency check
+  const ethers = require('ethers');
+  const provider = new ethers.providers.WebSocketProvider(process.env.WEBSOCKET_RPC_URL!);
+  
+  checkDependencies({
+    botType: "frontrun",
+    provider,
+    supabase,
+    dependencies: [
+      {
+        name: "mempool-connection",
+        check: async () => {
+          try {
+            await provider.getBlockNumber();
+            return true;
+          } catch {
+            return false;
+          }
+        }
+      },
+      {
+        name: "liquidpool-contracts", 
+        check: async () => {
+          try {
+            // Check just one known DEX router
+            const code = await provider.getCode("0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506"); // SushiSwap Router
+            return code !== '0x';
+          } catch {
+            return false;
+          }
+        }
+      }
+    ]
+  });
 }
 
 // The frontrunwatcher.ts file is imported, which contains the main bot logic
@@ -49,6 +128,18 @@ process.on('uncaughtException', (error) => {
     stack: error.stack,
     message: error.message
   });
+  
+  // Log to database if available
+  if (supabase) {
+    supabase.from('bot_logs').insert({
+      level: 'critical',
+      message: `Uncaught Exception: ${error.message}`,
+      category: 'exception',
+      bot_type: 'frontrun',
+      source: 'system',
+      metadata: { stack: error.stack }
+    }).catch(console.error);
+  }
   
   // Attempt graceful recovery
   setTimeout(() => {
@@ -64,16 +155,44 @@ process.on('unhandledRejection', (reason, promise) => {
     reason: reasonStr,
     promise: String(promise)
   });
+  
+  // Log to database if available
+  if (supabase) {
+    supabase.from('bot_logs').insert({
+      level: 'critical',
+      message: `Unhandled Rejection: ${reasonStr}`,
+      category: 'exception',
+      bot_type: 'frontrun',
+      source: 'system',
+      metadata: { reason: reasonStr }
+    }).catch(console.error);
+  }
 });
 
 // Monitor memory usage periodically
 setInterval(() => {
   const memoryUsage = process.memoryUsage();
-  log.debug('Memory usage stats', {
-    category: 'system',
+  const memStats = {
     rss: `${Math.round(memoryUsage.rss / 1024 / 1024)} MB`,
     heapTotal: `${Math.round(memoryUsage.heapTotal / 1024 / 1024)} MB`,
     heapUsed: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)} MB`,
     external: `${Math.round(memoryUsage.external / 1024 / 1024)} MB`
+  };
+  
+  log.debug('Memory usage stats', {
+    category: 'system',
+    ...memStats
   });
+  
+  // Log to database if available
+  if (supabase) {
+    supabase.from('bot_logs').insert({
+      level: 'debug',
+      message: 'Memory usage stats',
+      category: 'system',
+      bot_type: 'frontrun',
+      source: 'system',
+      metadata: memStats
+    }).catch(console.error);
+  }
 }, 300000); // Every 5 minutes

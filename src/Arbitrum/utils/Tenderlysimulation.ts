@@ -1,9 +1,11 @@
+
 import axios from "axios";
 import { ethers } from "ethers";
 
 export async function simulateBundleWithTenderly(
   // Accept serialized transactions as strings instead of requiring a provider
-  serializedTransactions: string[]
+  serializedTransactions: string[],
+  networkId: string = "42161" // Default to Arbitrum
 ): Promise<{ success: boolean; results?: any; error?: string }> {
   try {
     const TENDERLY_USER = process.env.TENDERLY_USER || "demo";
@@ -14,13 +16,13 @@ export async function simulateBundleWithTenderly(
     
     // Bundle simulation request
     const body = {
-      network_id: "42161", // Arbitrum
+      network_id: networkId, // Configurable network ID
       save: false, // Don't save simulation to dashboard
       save_if_fails: true, // Save if simulation fails
       simulation_type: "quick", // Fast simulation mode
       transactions: serializedTransactions.map(tx => ({
         raw_tx: tx,
-        network_id: "42161" // Arbitrum
+        network_id: networkId
       }))
     };
 
@@ -49,7 +51,7 @@ export async function simulateBundleWithTenderly(
       results: response.data
     };
     
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error in Tenderly simulation:", error);
     return {
       success: false,
