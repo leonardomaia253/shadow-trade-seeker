@@ -2,32 +2,23 @@
 import { ethers } from "ethers";
 import { buildOrchestrateCall } from "../../shared/build/buildOrchestrate";
 import { encodePayMiner } from "../../shared/build/payMinerCall";
-import { CallData, DexType } from "../../utils/types";
+import { CallData, DexType, AccountHealthData, LiquidationBundleParams, ProtocolType } from "../../utils/types";
 import { buildSwapTransaction } from "../../shared/build/buildSwap";
 import { getLiquidationCallData } from "../../shared/build/buildLiquidationCall";
-import { LENDING_PROTOCOL_ADDRESSES } from "../../constants/dexes"; 
 
-// Define the missing types
-interface AccountHealthData {
-  user: string;
-  debt: Array<{address: string, amount: number, decimals: number}>;
-  collateral: Array<{address: string, amount: number, decimals: number}>;
-}
-
-interface LiquidationBundleParams {
-  signer: ethers.Signer;
-  collateralAsset: string;
-  debtAsset: string;
-  userToLiquidate: string;
-  amountToRepay: string;
-  expectedProfitToken: string;
-  flashLoanToken: string;
-  flashLoanAmount: string;
-  minerReward: string;
-  protocol: "aave" | "compound" | "morpho" | "venus" | "spark";
-}
-
-type ProtocolType = "aave" | "compound" | "morpho" | "venus" | "spark" | "uniswapv3";
+// Define the LENDING_PROTOCOL_ADDRESSES if it's missing
+const LENDING_PROTOCOL_ADDRESSES: Record<ProtocolType, string> = {
+  "aave": "0x794a61358D6845594F94dc1DB02A252b5b4814aD",
+  "compound": "0x5345B5f4f3bFf1F4C1A2aFf3Ff1F4C1A2aFf3Ff1",
+  "morpho": "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",
+  "spark": "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",
+  "venus": "0x5345B5f4f3bFf1F4C1A2aFf3Ff1F4C1A2aFf3Ff1",
+  "abracadabra": "0x5345B5f4f3bFf1F4C1A2aFf3Ff1F4C1A2aFf3Ff1",
+  "radiant": "0x794a61358D6845594F94dc1DB02A252b5b4814aD",
+  "llamalend": "0x5345B5f4f3bFf1F4C1A2aFf3Ff1F4C1A2aFf3Ff1",
+  "creamfinance": "0x5345B5f4f3bFf1F4C1A2aFf3Ff1F4C1A2aFf3Ff1",
+  "ironbank": "0x5345B5f4f3bFf1F4C1A2aFf3Ff1F4C1A2aFf3Ff1"
+};
 
 export async function prepareAndBuildLiquidationCall(
   healthData: AccountHealthData,
@@ -39,18 +30,18 @@ export async function prepareAndBuildLiquidationCall(
 
   const params: LiquidationBundleParams = {
     signer,
-    collateralAsset: collateralAsset.address,
-    debtAsset: debtAsset.address,
+    collateralAsset: collateralAsset.token,
+    debtAsset: debtAsset.token,
     userToLiquidate: healthData.user,
     amountToRepay: ethers.utils.parseUnits(
       debtAsset.amount.toString(),
-      debtAsset.decimals
+      debtAsset.decimals || 18
     ).toString(),
-    expectedProfitToken: collateralAsset.address, // ou outro token de destino
-    flashLoanToken: debtAsset.address,
+    expectedProfitToken: collateralAsset.token, // ou outro token de destino
+    flashLoanToken: debtAsset.token,
     flashLoanAmount: ethers.utils.parseUnits(
       debtAsset.amount.toString(),
-      debtAsset.decimals
+      debtAsset.decimals || 18
     ).toString(),
     minerReward: "0", // ou calcule dinamicamente
     protocol,
@@ -91,8 +82,8 @@ export async function buildLiquidationBundle({
 
   // Create a liquidation call that conforms to CallData
   const liquidationCall: CallData = {
-    target: liquidationCallRes.target,
-    callData: liquidationCallRes.callData,
+    to: liquidationCallRes.target,
+    data: liquidationCallRes.callData,
     dex: defaultDex,
     requiresApproval: true,
     approvalToken: debtAsset,
@@ -117,10 +108,10 @@ export async function buildLiquidationBundle({
   
   // Convert to proper CallData format
   const minerCall: CallData = {
-    target: minerCallRaw.to,
-    callData: minerCallRaw.data,
+    to: minerCallRaw.to,
+    data: minerCallRaw.data,
     dex: defaultDex,
-    value: ethers.BigNumber.from(minerCallRaw.value.toString()),
+    value: ethers.BigNumber.from(minerCallRaw.value?.toString() || "0"),
     requiresApproval: false,
     approvalToken: "",
     approvalAmount: ethers.BigNumber.from(0)
@@ -138,8 +129,8 @@ export async function buildLiquidationBundle({
 
   // Convert orchestrate result to CallData format
   return {
-    target: orchestrateResult.target,
-    callData: orchestrateResult.data || "",
+    to: orchestrateResult.target || "",
+    data: String(orchestrateResult.data || ""),
     dex: defaultDex,
     value: ethers.BigNumber.from(orchestrateResult.value || 0),
     requiresApproval: orchestrateResult.requiresApproval || false,

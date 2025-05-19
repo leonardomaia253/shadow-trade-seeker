@@ -30,19 +30,18 @@ export function buildAaveLiquidation({
   ]);
 
   return {
-    target: aavePool,
     to: aavePool,
-    callData: data,
     data: data,
     dex: "uniswapv3",
     requiresApproval: true,
     approvalToken: fromToken,
-    approvalAmount: ethers.BigNumber.from(amount)
+    approvalAmount: ethers.BigNumber.from(amount),
+    target: aavePool,  // for compatibility
+    callData: data     // for compatibility
   };
 }
 
 //Compound
-
 export function buildCompoundLiquidation({
   signer,
   borrower,
@@ -68,14 +67,14 @@ export function buildCompoundLiquidation({
   ]);
 
   return {
-    target: compoundPool,
     to: compoundPool,
-    callData: data,
     data: data,
     dex: "uniswapv3",
     requiresApproval: true,
     approvalToken: cTokenBorrowed,
-    approvalAmount: ethers.BigNumber.from(amount)
+    approvalAmount: ethers.BigNumber.from(amount),
+    target: compoundPool,  // for compatibility
+    callData: data     // for compatibility
   };
 }
 
@@ -107,14 +106,14 @@ export function buildMorphoLiquidation({
   ]);
 
   return {
-    target: morphoBlue,
     to: morphoBlue,
-    callData: data,
     data: data,
     dex: "uniswapv3",
     requiresApproval: true,
     approvalToken: fromToken,
-    approvalAmount: ethers.BigNumber.from(amount)
+    approvalAmount: ethers.BigNumber.from(amount),
+    target: morphoBlue,  // for compatibility
+    callData: data     // for compatibility
   };
 }
 
@@ -145,14 +144,14 @@ export function buildSparkLiquidation({
   ]);
 
   return {
-    target: sparkPool,
     to: sparkPool,
-    callData: data,
     data: data,
     dex: "uniswapv3",
     requiresApproval: true,
     approvalToken: fromToken,
-    approvalAmount: ethers.BigNumber.from(amount)
+    approvalAmount: ethers.BigNumber.from(amount),
+    target: sparkPool,  // for compatibility
+    callData: data     // for compatibility
   };
 }
 
@@ -181,13 +180,13 @@ export function buildVenusLiquidation({
   ]);
 
   return {
-    target: venusPool,
     to: venusPool,
-    callData: data,
     data: data,
     dex: "uniswapv3",
     requiresApproval: true,
     approvalToken: vTokenBorrowed,
-    approvalAmount: ethers.BigNumber.from(amount)
+    approvalAmount: ethers.BigNumber.from(amount),
+    target: venusPool,  // for compatibility
+    callData: data     // for compatibility
   };
 }

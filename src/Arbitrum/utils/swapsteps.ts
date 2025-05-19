@@ -2,8 +2,7 @@
 import { buildOrchestrationFromRoute } from "../bots/arbitrage/arbitragebuilder";
 import { SwapStep, TokenInfo } from "../utils/types";
 import { ethers } from 'ethers';
-import { buildSwapTransaction} from "../shared/build/buildSwap";
-
+import { buildSwapTransaction } from "../shared/build/buildSwap";
 
 // Um mapeamento dos dex para seus routers
 const DEX_ROUTERS: Record<string, string> = {
@@ -61,6 +60,10 @@ export async function convertRouteToSwapSteps(
       router,
       to: router,
       data,
+      // Convert BigInt to BigNumber for amountOutMin if needed
+      amountOutMin: typeof call.amountOutMin === 'bigint' ? 
+        ethers.BigNumber.from(call.amountOutMin.toString()) : 
+        call.amountOutMin,
       // outros campos que SwapStep precisar
     });
   }

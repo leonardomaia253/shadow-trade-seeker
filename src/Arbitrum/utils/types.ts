@@ -1,4 +1,3 @@
-
 import { ethers } from "ethers";
 import { BigNumberish } from "ethers";
 import { BigNumber } from "ethers";
@@ -26,7 +25,7 @@ export type DexType =
   | "curve"
   | "camelot";
 
-  export type ProtocolType = 
+export type ProtocolType = 
   | "aave" 
   | "spark" 
   | "radiant"
@@ -38,7 +37,6 @@ export type DexType =
   | "creamfinance"
   | "ironbank";
 
-
 // Token information
 export interface TokenInfo {
   address: string;
@@ -48,7 +46,7 @@ export interface TokenInfo {
   logoURI?: string;
 }
 
-// Call data for contract interactions
+// Call data for contract interactions - Updated to include all necessary properties
 export interface CallData {
   to: string;          // endereço do contrato a ser chamado
   data: string;        // calldata da função
@@ -121,16 +119,23 @@ export interface AccountHealthData {
   healthFactor: number;
   totalCollateralETH: number;
   totalDebtETH: number;
-  collateral: Array<{ token: string, amount: number }>;
-  debt: Array<{ token: string, amount: number }>;
+  shortfallUSD?: number;  // Added for use in liquidationbuilder
+  collateral: Array<{ token: string, amount: number, decimals?: number }>;
+  debt: Array<{ token: string, amount: number, decimals?: number }>;
 }
 
 // Liquidation Bundle Parameters
 export interface LiquidationBundleParams {
-  protocol: string;
-  params: any;
-  fromToken?: string;
-  toToken?: string;
+  signer: ethers.Signer;
+  collateralAsset: string;
+  debtAsset: string;
+  userToLiquidate: string;
+  amountToRepay: string;
+  expectedProfitToken: string;
+  flashLoanToken: string;
+  flashLoanAmount: string;
+  minerReward: string;
+  protocol: "aave" | "compound" | "morpho" | "venus" | "spark";
 }
 
 // Built route for arbitrage execution
@@ -162,7 +167,6 @@ export type DexSwap = {
   flashLoanToken?: string;
   flashLoanAmount?: BigNumber;
 };
-
 
 // Built Swap Call
 export interface BuiltSwapCall {
