@@ -1,6 +1,5 @@
 
 import { ethers } from "ethers";
-import "dotenv/config";
 import { getProvider } from "../../config/provider";
 import { buildOrchestrationFromRoute } from "./arbitragebuilder";
 import { fetchTopTokensArbitrum } from "../../utils/tokensdefi";
@@ -15,6 +14,10 @@ import {BigNumber, Wallet} from "ethers";
 import {buildSwapToETHCall} from "../../shared/build/buildSwapResidual";
 import { simulateTokenProfit } from "../../simulation/simulate";
 import { sendBundle } from "@/Arbitrum/executor/sendBundle";
+import * as dotenv from "dotenv";
+import * as path from "path";
+
+dotenv.config({ path: path.resolve(__dirname, "../../../Arbitrum/.env") });
 
 // Initialize Supabase client for database interaction
 const supabaseUrl = process.env.SUPABASE_URL!;

@@ -1,5 +1,4 @@
 import { ethers, BigNumber } from "ethers";
-import dotenv from "dotenv";
 import { getDexList } from "../../utils/dexList";
 import { getPriceImpactAndProfit } from "../../utils/getPriceImpactAndProfit";
 import { enhancedLogger as log } from "../../utils/enhancedLogger";
@@ -12,8 +11,11 @@ import { buildSwapToETHCall } from "@/Arbitrum/shared/build/buildSwapResidual";
 import { buildUnwrapWETHCall } from "@/Arbitrum/shared/build/UnwrapWETH";
 import { getWETHBalance } from "@/Arbitrum/shared/build/BalanceOf";
 import { sendBundle } from "../../executor/sendBundle";
+import * as dotenv from "dotenv";
+import * as path from "path";
 
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, "../../../Arbitrum/.env") });
+
 
 const WEBSOCKET_RPC_URL = process.env.WEBSOCKET_RPC_URL!;
 const DRY_RUN = process.env.DRY_RUN === "true";

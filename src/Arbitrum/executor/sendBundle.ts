@@ -2,7 +2,11 @@ import { ethers } from "ethers";
 import axios from "axios";
 import WebSocket from "ws";
 import { JsonRpcProvider } from "@ethersproject/providers";
-import "dotenv/config";
+import * as dotenv from "dotenv";
+import * as path from "path";
+
+dotenv.config({ path: path.resolve(__dirname, "../../Arbitrum/.env") });
+
 
 // === Configuração dos Relays ===
 const BLOXROUTE_AUTH_HEADER = process.env.BLOXROUTE_AUTH_HEADER!;

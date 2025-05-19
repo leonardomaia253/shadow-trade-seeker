@@ -1,5 +1,10 @@
 
 import { ethers } from "ethers";
+import * as dotenv from "dotenv";
+import * as path from "path";
+
+dotenv.config({ path: path.resolve(__dirname, "../../Arbitrum/.env") });
+
 
 // Create a provider instance
 export const provider = new ethers.providers.JsonRpcProvider(

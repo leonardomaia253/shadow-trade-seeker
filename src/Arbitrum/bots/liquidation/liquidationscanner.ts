@@ -5,6 +5,10 @@ import { enhancedLogger } from "../../utils/enhancedLogger";
 import { LiquidationOpportunity } from "../../utils/types";
 import { getAaveLiquidationOpportunities } from "./finder/AaveAll";
 import { getCompoundLiquidationOpportunities } from "./finder/CompoundAll";
+import * as dotenv from "dotenv";
+import * as path from "path";
+
+dotenv.config({ path: path.resolve(__dirname, "../../../Arbitrum/.env") });
 
 // Create a provider
 const provider = new ethers.providers.JsonRpcProvider("https://arb-mainnet.g.alchemy.com/v2/demo");

@@ -1,5 +1,4 @@
 import { ethers } from "ethers";
-import "dotenv/config";
 import { createResilientProvider } from "../../config/resilientProvider";
 import { buildOrchestrationFromRoute } from "./profiter2builder";
 import { fetchTopTokensArbitrum } from "../../utils/tokensdefi";
@@ -23,6 +22,10 @@ import { createContextLogger } from "../../utils/enhancedLogger";
 import { startHealthServer, updateBotMetrics, updateBotStatus, registerShutdownHandlers } from "../../utils/healthMonitor";
 import { createBotModuleLogger, checkDependencies } from "../../utils/botLogger";
 import { providers } from "ethers";
+import * as dotenv from "dotenv";
+import * as path from "path";
+
+dotenv.config({ path: path.resolve(__dirname, "../../../Arbitrum/.env") });
 
 // Initialize Supabase client for database interaction
 const supabaseUrl = process.env.SUPABASE_URL!;

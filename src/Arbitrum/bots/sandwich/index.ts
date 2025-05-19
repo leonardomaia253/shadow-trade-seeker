@@ -1,12 +1,12 @@
-import dotenv from 'dotenv';
 import * as os from 'os'; // Import os module for system information
 import { enhancedLogger as baseLogger, createContextLogger } from '../../utils/enhancedLogger';
 import { createBotModuleLogger, checkDependencies, updateBotStatus } from '../../utils/botLogger';
 import { createClient } from "@supabase/supabase-js";
 import './sandwichScanner';
+import * as dotenv from "dotenv";
+import * as path from "path";
 
-// Load environment variables
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, "../../../Arbitrum/.env") });
 
 // Initialize Supabase client for database interaction
 const supabaseUrl = process.env.SUPABASE_URL!;

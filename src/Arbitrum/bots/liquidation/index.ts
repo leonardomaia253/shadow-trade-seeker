@@ -1,6 +1,10 @@
 
 import { JsonRpcProvider } from "@ethersproject/providers";
 import { watchCompoundLiquidationEvents, getCompoundLiquidationOpportunities } from "./compoundLiquidationWatcher";
+import * as dotenv from "dotenv";
+import * as path from "path";
+
+dotenv.config({ path: path.resolve(__dirname, "../../../Arbitrum/.env") });
 
 const provider = new JsonRpcProvider("https://mainnet.infura.io/v3/YOUR_KEY");
 

@@ -1,4 +1,9 @@
 import { ethers } from "ethers";
+import * as dotenv from "dotenv";
+import * as path from "path";
+
+dotenv.config({ path: path.resolve(__dirname, "../../Arbitrum/.env") });
+
 
 export function getProvider(): ethers.providers.WebSocketProvider {
   const wsUrl = "wss://arb-mainnet.g.alchemy.com/v2/o--1ruggGezl5R36rrSDX8JiVouHQOJO";

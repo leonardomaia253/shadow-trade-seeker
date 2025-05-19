@@ -1,6 +1,11 @@
 import axios from 'axios';
 import { ethers } from 'ethers';
 import { createContextLogger } from './enhancedLogger';
+import * as dotenv from "dotenv";
+import * as path from "path";
+
+dotenv.config({ path: path.resolve(__dirname, "../../Arbitrum/.env") });
+
 
 // Create a context-aware logger for this module
 const log = createContextLogger({
