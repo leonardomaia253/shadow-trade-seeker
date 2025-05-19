@@ -1,6 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.1";
+import { run } from "https://deno.land/x/native_run@1.2.0/mod.ts";
 
 // CORS headers for browser requests
 const corsHeaders = {
@@ -8,19 +9,302 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Enhanced logging function
+function logEvent(supabase, level, message, category, botType, source, metadata = {}) {
+  return supabase.from('bot_logs').insert({
+    level,
+    message,
+    category,
+    bot_type: botType,
+    source,
+    timestamp: new Date().toISOString(),
+    metadata: {
+      ...metadata,
+      environment: Deno.env.get('ENVIRONMENT') || 'production',
+      serverVersion: '1.0.0'
+    }
+  });
+}
+
+// Function to report module status
+async function reportModuleStatus(supabase, module, status, details = {}) {
+  // Check if there are any silent errors to report
+  const silentErrors = details.silent_errors || [];
+  const needsFix = silentErrors.length > 0 || status === 'error';
+  
+  return await supabase.from('bot_logs').insert({
+    level: status === 'error' ? 'error' : status === 'warning' ? 'warn' : 'info',
+    message: `${module} status: ${status}`,
+    category: 'health_check',
+    bot_type: 'profiter-two',
+    source: module,
+    timestamp: new Date().toISOString(),
+    metadata: {
+      status, 
+      health: needsFix ? 'needs_fix' : status,
+      details,
+      silent_errors: silentErrors,
+      needsAttention: needsFix
+    }
+  });
+}
+
+// Function to execute a PM2 command
+async function executePm2Command(command, args = []) {
+  try {
+    // Set up the full command with PM2
+    const fullCommand = ["pm2", command, ...args];
+    
+    // Execute the command
+    const process = await run(fullCommand);
+    
+    // Wait for the process to complete and collect output
+    const { code, stdout, stderr } = await process.output();
+    
+    if (code !== 0) {
+      throw new Error(`PM2 command failed with code ${code}: ${stderr}`);
+    }
+    
+    return { success: true, output: stdout };
+  } catch (error) {
+    console.error(`Failed to execute PM2 command: ${error.message}`);
+    return { success: false, error: error.message };
+  }
+}
+
+// Function to start the bot with PM2
+async function startBotWithPm2(supabase, config) {
+  const { baseToken, profitThreshold, gasMultiplier, maxGasPrice } = config || {};
+
+  // Log bot start event
+  await logEvent(
+    supabase,
+    'info',
+    `Starting Profiter Two bot with PM2... profit threshold: ${profitThreshold} ETH`,
+    'bot_state',
+    'profiter-two',
+    'system',
+    { baseToken, profitThreshold, gasMultiplier, maxGasPrice, pm2: true }
+  );
+  
+  // Execute PM2 start command
+  const pm2Result = await executePm2Command("start", [
+    "ecosystem.config.ts", 
+    "--", 
+    `--profitThreshold=${profitThreshold || 0.1}`,
+    `--baseToken=${baseToken?.symbol || 'USDC'}`,
+    `--gasMultiplier=${gasMultiplier || 1.2}`,
+    `--maxGasPrice=${maxGasPrice || 30}`
+  ]);
+  
+  if (!pm2Result.success) {
+    await logEvent(
+      supabase,
+      'error',
+      `PM2 failed to start Profiter Two bot: ${pm2Result.error}`,
+      'bot_state',
+      'profiter-two',
+      'system'
+    );
+    throw new Error(`Failed to start bot with PM2: ${pm2Result.error}`);
+  }
+  
+  // Update bot status in database to running
+  await supabase.from('bot_statistics').update({ 
+    is_running: true,
+    updated_at: new Date().toISOString() 
+  }).eq('bot_type', 'profiter-two');
+
+  // Create initial health check logs for each module
+  const modules = ['scanner', 'builder', 'executor', 'watcher'];
+  for (const module of modules) {
+    await reportModuleStatus(
+      supabase, 
+      module, 
+      'ok', 
+      { details: 'Module initialized by PM2' }
+    );
+  }
+  
+  return { 
+    success: true, 
+    message: "Bot started successfully with PM2",
+    pm2Output: pm2Result.output
+  };
+}
+
+// Function to stop the bot with PM2
+async function stopBotWithPm2(supabase) {
+  // Log bot stop event
+  await logEvent(
+    supabase,
+    'info',
+    'Stopping Profiter Two bot with PM2...',
+    'bot_state',
+    'profiter-two',
+    'system'
+  );
+  
+  // Execute PM2 stop command
+  const pm2Result = await executePm2Command("stop", ["profiter-two"]);
+  
+  if (!pm2Result.success) {
+    await logEvent(
+      supabase,
+      'error',
+      `PM2 failed to stop Profiter Two bot: ${pm2Result.error}`,
+      'bot_state',
+      'profiter-two',
+      'system'
+    );
+    throw new Error(`Failed to stop bot with PM2: ${pm2Result.error}`);
+  }
+  
+  // Update bot status in database to stopped
+  await supabase.from('bot_statistics').update({ 
+    is_running: false,
+    updated_at: new Date().toISOString() 
+  }).eq('bot_type', 'profiter-two');
+
+  // Update module statuses to inactive
+  const modules = ['scanner', 'builder', 'executor', 'watcher'];
+  for (const module of modules) {
+    await reportModuleStatus(
+      supabase, 
+      module, 
+      'inactive', 
+      { details: 'Module stopped by PM2' }
+    );
+  }
+  
+  return { 
+    success: true, 
+    message: "Bot stopped successfully with PM2",
+    pm2Output: pm2Result.output
+  };
+}
+
+// Function to restart the bot with PM2
+async function restartBotWithPm2(supabase) {
+  // Log bot restart event
+  await logEvent(
+    supabase,
+    'info',
+    'Restarting Profiter Two bot with PM2...',
+    'bot_state',
+    'profiter-two',
+    'system'
+  );
+  
+  // Execute PM2 restart command
+  const pm2Result = await executePm2Command("restart", ["profiter-two"]);
+  
+  if (!pm2Result.success) {
+    await logEvent(
+      supabase,
+      'error',
+      `PM2 failed to restart Profiter Two bot: ${pm2Result.error}`,
+      'bot_state',
+      'profiter-two',
+      'system'
+    );
+    throw new Error(`Failed to restart bot with PM2: ${pm2Result.error}`);
+  }
+  
+  // Update module statuses
+  const modules = ['scanner', 'builder', 'executor', 'watcher'];
+  for (const module of modules) {
+    await reportModuleStatus(
+      supabase, 
+      module, 
+      'ok', 
+      { details: 'Module restarted by PM2' }
+    );
+  }
+  
+  return { 
+    success: true, 
+    message: "Bot restarted successfully with PM2",
+    pm2Output: pm2Result.output
+  };
+}
+
+// Function to get PM2 logs
+async function getPm2Logs(supabase) {
+  // Log request for logs
+  await logEvent(
+    supabase,
+    'info',
+    'Requesting PM2 logs for Profiter Two bot',
+    'monitoring',
+    'profiter-two',
+    'system'
+  );
+  
+  // Execute PM2 logs command
+  const pm2Result = await executePm2Command("logs", ["profiter-two", "--lines", "50"]);
+  
+  if (!pm2Result.success) {
+    throw new Error(`Failed to get PM2 logs: ${pm2Result.error}`);
+  }
+  
+  return { 
+    success: true, 
+    logs: pm2Result.output
+  };
+}
+
+// Function to get PM2 status
+async function getPm2Status(supabase) {
+  // Execute PM2 status command
+  const pm2Result = await executePm2Command("status");
+  
+  if (!pm2Result.success) {
+    throw new Error(`Failed to get PM2 status: ${pm2Result.error}`);
+  }
+  
+  // Parse the output to find our bot's status
+  const output = pm2Result.output;
+  let botStatus = 'unknown';
+  
+  if (output.includes('profiter-two') && output.includes('online')) {
+    botStatus = 'online';
+  } else if (output.includes('profiter-two') && output.includes('stopped')) {
+    botStatus = 'stopped';
+  }
+  
+  // Log the status check
+  await logEvent(
+    supabase,
+    'info',
+    `PM2 status check: ${botStatus}`,
+    'monitoring',
+    'profiter-two',
+    'system',
+    { pm2Status: botStatus }
+  );
+  
+  return { 
+    success: true, 
+    status: botStatus,
+    fullOutput: output
+  };
+}
+
 // Function to start the profiter-two bot
 async function startBot(supabase, config) {
   const { baseToken, profitThreshold, gasMultiplier, maxGasPrice } = config || {};
 
   // Log bot start event
-  await supabase.from('bot_logs').insert({
-    level: 'info',
-    message: `Profiter Two bot started with ${baseToken.symbol} as base token and ${profitThreshold} ETH profit threshold`,
-    category: 'bot_state',
-    bot_type: 'profiter-two',
-    source: 'system',
-    metadata: { baseToken, profitThreshold, gasMultiplier, maxGasPrice }
-  });
+  await logEvent(
+    supabase,
+    'info',
+    `Profiter Two bot started with ${baseToken.symbol} as base token and ${profitThreshold} ETH profit threshold`,
+    'bot_state',
+    'profiter-two',
+    'system',
+    { baseToken, profitThreshold, gasMultiplier, maxGasPrice }
+  );
   
   // Update bot status in database to trigger the bot to start
   await supabase.from('bot_statistics').update({ 
@@ -59,13 +343,14 @@ async function startBot(supabase, config) {
 // Function to stop the profiter-two bot
 async function stopBot(supabase) {
   // Log bot stop event
-  await supabase.from('bot_logs').insert({
-    level: 'info',
-    message: 'Profiter Two bot stopped',
-    category: 'bot_state',
-    bot_type: 'profiter-two',
-    source: 'system'
-  });
+  await logEvent(
+    supabase,
+    'info',
+    'Profiter Two bot stopped',
+    'bot_state',
+    'profiter-two',
+    'system'
+  );
   
   // Update bot status in database to trigger the bot to stop
   await supabase.from('bot_statistics').update({ 
@@ -99,19 +384,20 @@ async function updateBotConfig(supabase, config) {
   const { baseToken, profitThreshold, gasMultiplier, maxGasPrice } = config || {};
   
   // Log configuration update
-  await supabase.from('bot_logs').insert({
-    level: 'info',
-    message: `Bot configuration updated: profit threshold=${profitThreshold} ETH, base token=${baseToken.symbol}`,
-    category: 'configuration',
-    bot_type: 'profiter-two',
-    source: 'system',
-    metadata: { 
+  await logEvent(
+    supabase,
+    'info',
+    `Bot configuration updated: profit threshold=${profitThreshold} ETH, base token=${baseToken.symbol}`,
+    'configuration',
+    'profiter-two',
+    'system',
+    { 
       baseToken, 
       profitThreshold,
       gasMultiplier,
       maxGasPrice
     }
-  });
+  );
   
   // The actual bot will pick up these configuration changes from the database
   // and apply them on the next execution cycle
@@ -217,14 +503,33 @@ async function getBotStatus(supabase) {
     });
   }
   
-  return {
-    success: true,
-    status: statistics?.is_running ? "running" : "stopped",
-    statistics,
-    transactions,
-    logs,
-    moduleStatus
-  };
+  // Get PM2 status
+  try {
+    const pm2StatusResult = await getPm2Status(supabase);
+    
+    return {
+      success: true,
+      status: statistics?.is_running ? "running" : "stopped",
+      pm2Status: pm2StatusResult.status,
+      statistics,
+      transactions,
+      logs,
+      moduleStatus
+    };
+  } catch (error) {
+    // Continue even if PM2 status check fails
+    console.error("Failed to get PM2 status:", error);
+    
+    return {
+      success: true,
+      status: statistics?.is_running ? "running" : "stopped",
+      pm2Status: "unknown",
+      statistics,
+      transactions,
+      logs,
+      moduleStatus
+    };
+  }
 }
 
 // Helper function to determine health status from a log
@@ -279,6 +584,21 @@ serve(async (req) => {
         break;
       case 'status':
         result = await getBotStatus(supabase);
+        break;
+      case 'pm2Status':
+        result = await getPm2Status(supabase);
+        break;
+      case 'pm2Start':
+        result = await startBotWithPm2(supabase, config);
+        break;
+      case 'pm2Stop':
+        result = await stopBotWithPm2(supabase);
+        break;
+      case 'pm2Restart':
+        result = await restartBotWithPm2(supabase);
+        break;
+      case 'pm2Logs':
+        result = await getPm2Logs(supabase);
         break;
       default:
         throw new Error(`Unknown action: ${action}`);
