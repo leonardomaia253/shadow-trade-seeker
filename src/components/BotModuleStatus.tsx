@@ -1,11 +1,15 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { AlertCircle, CheckCircle, Clock, Activity, Info, HelpCircle, XCircle, Wrench, AlertTriangle } from 'lucide-react';
-import { Button } from "@/components/ui/button";
+import { AlertCircle, CheckCircle, Clock, Activity, HelpCircle, XCircle, Wrench, AlertTriangle } from 'lucide-react';
+
+interface SilentError {
+  message: string;
+  timestamp: string;
+  code?: string;
+}
 
 interface ModuleStatus {
   name: string;
@@ -13,7 +17,7 @@ interface ModuleStatus {
   health?: 'ok' | 'error' | 'warning' | 'inactive' | 'needs_fix';
   lastChecked?: Date;
   details?: any;
-  silentErrors?: Array<{message: string, timestamp: string, code?: string}>;
+  silentErrors?: SilentError[];
   needsAttention?: boolean;
 }
 
@@ -38,15 +42,39 @@ const BotModuleStatus: React.FC<BotModuleStatusProps> = ({ botType, refreshInter
           
           if (!error && data && data.moduleStatus) {
             // Process moduleStatus from edge function response
-            const moduleArray: ModuleStatus[] = Object.entries(data.moduleStatus).map(([name, details]: [string, any]) => ({
-              name,
-              status: details.status || 'inactive',
-              health: details.health || 'inactive',
-              lastChecked: details.lastChecked ? new Date(details.lastChecked) : undefined,
-              details: details.details,
-              silentErrors: details.silentErrors || [],
-              needsAttention: details.needsAttention
-            }));
+            const moduleArray: ModuleStatus[] = Object.entries(data.moduleStatus).map(([name, details]: [string, any]) => {
+              // Ensure status is of the correct type
+              const status = validateStatus(details.status || 'inactive');
+              const health = validateStatus(details.health || status);
+              
+              // Ensure silentErrors are correctly typed
+              let silentErrors: SilentError[] = [];
+              if (details.silentErrors && Array.isArray(details.silentErrors)) {
+                silentErrors = details.silentErrors.map((err: any) => {
+                  if (typeof err === 'object' && err !== null) {
+                    return {
+                      message: String(err.message || 'Unknown error'),
+                      timestamp: String(err.timestamp || new Date().toISOString()),
+                      code: err.code ? String(err.code) : undefined
+                    };
+                  }
+                  return {
+                    message: String(err || 'Unknown error'),
+                    timestamp: new Date().toISOString()
+                  };
+                });
+              }
+              
+              return {
+                name,
+                status,
+                health,
+                lastChecked: details.lastChecked ? new Date(details.lastChecked) : undefined,
+                details: details.details,
+                silentErrors,
+                needsAttention: Boolean(details.needsAttention)
+              };
+            });
             
             setModules(moduleArray);
             setLastUpdated(new Date());
@@ -78,26 +106,38 @@ const BotModuleStatus: React.FC<BotModuleStatusProps> = ({ botType, refreshInter
             if (!moduleMap.has(moduleName)) {
               // Check for health status in metadata first, then fallback to derived status
               const metadata = log.metadata || {}; 
-              let health = 'inactive';
-              let status = 'inactive';
-              let silentErrors: Array<{message: string, timestamp: string, code?: string}> = [];
+              let health: ModuleStatus['health'] = 'inactive';
+              let status: ModuleStatus['status'] = 'inactive';
+              let silentErrors: SilentError[] = [];
               
               // Type check and access metadata properties safely
               if (typeof metadata === 'object' && metadata !== null) {
                 if ('health' in metadata) {
-                  health = metadata.health as ModuleStatus['health'];
+                  health = validateStatus(String(metadata.health));
                 } else {
                   health = getHealthFromLog(log);
                 }
                 
                 if ('status' in metadata) {
-                  status = metadata.status as ModuleStatus['status'];
+                  status = validateStatus(String(metadata.status));
                 } else {
                   status = getStatusFromLog(log);
                 }
                 
                 if ('silent_errors' in metadata && Array.isArray(metadata.silent_errors)) {
-                  silentErrors = metadata.silent_errors;
+                  silentErrors = (metadata.silent_errors as any[]).map(err => {
+                    if (typeof err === 'object' && err !== null) {
+                      return {
+                        message: String(err.message || 'Unknown error'),
+                        timestamp: String(err.timestamp || new Date().toISOString()),
+                        code: err.code ? String(err.code) : undefined
+                      };
+                    }
+                    return {
+                      message: String(err || 'Unknown error'),
+                      timestamp: new Date().toISOString()
+                    };
+                  });
                 }
               } else {
                 // If metadata is not an object, use derived values
@@ -110,12 +150,12 @@ const BotModuleStatus: React.FC<BotModuleStatusProps> = ({ botType, refreshInter
               
               moduleMap.set(moduleName, {
                 name: moduleName,
-                status: status,
-                health: health,
+                status,
+                health,
                 lastChecked: new Date(log.timestamp),
                 details: log.metadata,
-                silentErrors: silentErrors,
-                needsAttention: needsAttention
+                silentErrors,
+                needsAttention
               });
             }
           });
@@ -152,6 +192,13 @@ const BotModuleStatus: React.FC<BotModuleStatusProps> = ({ botType, refreshInter
       }
     };
 
+    // Helper function to validate status values to ensure they match the union type
+    const validateStatus = (status: string): ModuleStatus['status'] => {
+      const validStatuses: ModuleStatus['status'][] = ['ok', 'error', 'warning', 'inactive', 'needs_fix'];
+      return validStatuses.includes(status as any) ? 
+        (status as ModuleStatus['status']) : 'inactive';
+    };
+
     // Fetch initial status
     fetchModuleStatus();
 
@@ -174,26 +221,38 @@ const BotModuleStatus: React.FC<BotModuleStatusProps> = ({ botType, refreshInter
             
             // Check for health status in metadata first, then fallback to derived status
             const metadata = log.metadata || {}; 
-            let health = 'inactive';
-            let status = 'inactive';
-            let silentErrors: Array<{message: string, timestamp: string, code?: string}> = [];
+            let health: ModuleStatus['health'] = 'inactive';
+            let status: ModuleStatus['status'] = 'inactive';
+            let silentErrors: SilentError[] = [];
             
             // Type check and access metadata properties safely
             if (typeof metadata === 'object' && metadata !== null) {
               if ('health' in metadata) {
-                health = metadata.health as ModuleStatus['health'];
+                health = validateStatus(String(metadata.health));
               } else {
                 health = getHealthFromLog(log);
               }
               
               if ('status' in metadata) {
-                status = metadata.status as ModuleStatus['status'];
+                status = validateStatus(String(metadata.status));
               } else {
                 status = getStatusFromLog(log);
               }
               
               if ('silent_errors' in metadata && Array.isArray(metadata.silent_errors)) {
-                silentErrors = metadata.silent_errors;
+                silentErrors = (metadata.silent_errors as any[]).map(err => {
+                  if (typeof err === 'object' && err !== null) {
+                    return {
+                      message: String(err.message || 'Unknown error'),
+                      timestamp: String(err.timestamp || new Date().toISOString()),
+                      code: err.code ? String(err.code) : undefined
+                    };
+                  }
+                  return {
+                    message: String(err || 'Unknown error'),
+                    timestamp: new Date().toISOString()
+                  };
+                });
               }
             } else {
               // If metadata is not an object, use derived values
@@ -209,12 +268,12 @@ const BotModuleStatus: React.FC<BotModuleStatusProps> = ({ botType, refreshInter
               const updated = [...prev];
               updated[moduleIndex] = {
                 ...updated[moduleIndex],
-                status: status,
-                health: health,
+                status,
+                health,
                 lastChecked: new Date(log.timestamp),
                 details: log.metadata,
-                silentErrors: silentErrors,
-                needsAttention: needsAttention
+                silentErrors,
+                needsAttention
               };
               return updated;
             } else {
@@ -223,12 +282,12 @@ const BotModuleStatus: React.FC<BotModuleStatusProps> = ({ botType, refreshInter
                 ...prev,
                 {
                   name: moduleName,
-                  status: status,
-                  health: health,
+                  status,
+                  health,
                   lastChecked: new Date(log.timestamp),
                   details: log.metadata,
-                  silentErrors: silentErrors,
-                  needsAttention: needsAttention
+                  silentErrors,
+                  needsAttention
                 }
               ];
             }
@@ -246,7 +305,7 @@ const BotModuleStatus: React.FC<BotModuleStatusProps> = ({ botType, refreshInter
   }, [botType, refreshInterval]);
 
   // Helper function to determine status from log
-  const getStatusFromLog = (log: any): 'ok' | 'error' | 'warning' | 'inactive' => {
+  const getStatusFromLog = (log: any): ModuleStatus['status'] => {
     if (!log) return 'inactive';
     
     if (log.level === 'error' || log.level === 'critical') {
@@ -261,7 +320,7 @@ const BotModuleStatus: React.FC<BotModuleStatusProps> = ({ botType, refreshInter
   };
 
   // Helper function to determine health status from log
-  const getHealthFromLog = (log: any): 'ok' | 'error' | 'warning' | 'inactive' | 'needs_fix' => {
+  const getHealthFromLog = (log: any): ModuleStatus['status'] => {
     if (!log) return 'inactive';
     
     // Check for silent errors in metadata that would require fixing

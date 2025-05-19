@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.1";
 
@@ -27,20 +26,29 @@ function logEvent(supabase, level, message, category, botType, source, metadata 
 
 // Function to report module status
 async function reportModuleStatus(supabase, module, status, details = {}) {
+  // Ensure status is one of the valid values
+  const validStatusValues = ['ok', 'error', 'warning', 'inactive', 'needs_fix'];
+  const normalizedStatus = validStatusValues.includes(status) ? status : 'inactive';
+  
   // Check if there are any silent errors to report
-  const silentErrors = details.silent_errors || [];
-  const needsFix = silentErrors.length > 0 || status === 'error';
+  const silentErrors = Array.isArray(details.silent_errors) ? details.silent_errors : [];
+  
+  // Determine if module needs fixing
+  const needsFix = silentErrors.length > 0 || normalizedStatus === 'error';
+  
+  // Define a safe health status
+  const healthStatus = needsFix ? 'needs_fix' : normalizedStatus;
   
   return await supabase.from('bot_logs').insert({
-    level: status === 'error' ? 'error' : status === 'warning' ? 'warn' : 'info',
-    message: `${module} status: ${status}`,
+    level: normalizedStatus === 'error' ? 'error' : normalizedStatus === 'warning' ? 'warn' : 'info',
+    message: `${module} status: ${normalizedStatus}`,
     category: 'health_check',
     bot_type: 'frontrun',
     source: module,
     timestamp: new Date().toISOString(),
     metadata: {
-      status, 
-      health: needsFix ? 'needs_fix' : status,
+      status: normalizedStatus, 
+      health: healthStatus,
       details,
       silent_errors: silentErrors,
       needsAttention: needsFix
@@ -199,14 +207,30 @@ async function getBotStatus(supabase) {
       if (module && !seenModules.has(module)) {
         seenModules.add(module);
         
-        const silentErrors = log.metadata?.silent_errors || [];
-        const needsFix = silentErrors.length > 0 || log.metadata?.status === 'error';
+        // Validate status values
+        const validStatusValues = ['ok', 'error', 'warning', 'inactive', 'needs_fix'];
+        
+        // Extract and normalize metadata values
+        const metadata = log.metadata || {};
+        const silentErrors = Array.isArray(metadata.silent_errors) ? metadata.silent_errors : [];
+        let statusValue = typeof metadata.status === 'string' && validStatusValues.includes(metadata.status) 
+                          ? metadata.status : 'inactive';
+        let healthValue = typeof metadata.health === 'string' && validStatusValues.includes(metadata.health)
+                          ? metadata.health : statusValue;
+                          
+        const needsFix = silentErrors.length > 0 || statusValue === 'error' || 
+                         (typeof metadata.needsAttention === 'boolean' && metadata.needsAttention);
+        
+        // If needs fixing, ensure health reflects this
+        if (needsFix && healthValue !== 'needs_fix') {
+          healthValue = 'needs_fix';
+        }
         
         moduleStatus[module] = {
-          status: log.metadata?.status || 'inactive',
-          health: needsFix ? 'needs_fix' : (log.metadata?.health || log.metadata?.status || 'inactive'),
+          status: statusValue,
+          health: healthValue,
           lastChecked: log.timestamp,
-          details: log.metadata,
+          details: metadata,
           silentErrors: silentErrors,
           needsAttention: needsFix
         };
@@ -243,6 +267,10 @@ async function getBotStatus(supabase) {
 async function simulateIssue(supabase, options) {
   const { module, status, errorCount } = options;
   
+  // Validate status to ensure it's one of the allowed values
+  const validStatusValues = ['ok', 'error', 'warning', 'inactive', 'needs_fix'];
+  const normalizedStatus = validStatusValues.includes(status) ? status : 'inactive';
+  
   const silentErrors = [];
   if (errorCount && errorCount > 0) {
     for (let i = 0; i < errorCount; i++) {
@@ -257,16 +285,16 @@ async function simulateIssue(supabase, options) {
   await reportModuleStatus(
     supabase, 
     module, 
-    status, 
+    normalizedStatus, 
     { 
-      details: `Test ${status} status with ${silentErrors.length} silent errors`,
+      details: `Test ${normalizedStatus} status with ${silentErrors.length} silent errors`,
       silent_errors: silentErrors
     }
   );
   
   return { 
     success: true, 
-    message: `Simulated ${status} status for ${module} with ${silentErrors.length} silent errors` 
+    message: `Simulated ${normalizedStatus} status for ${module} with ${silentErrors.length} silent errors` 
   };
 }
 
