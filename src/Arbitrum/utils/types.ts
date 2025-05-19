@@ -102,12 +102,14 @@ export interface FrontrunOpportunity {
 export interface LiquidationOpportunity {
   protocol: string;
   userAddress: string;
-  collateralAsset: string | TokenInfo;
-  debtAsset: string | TokenInfo;
-  debtAmount: string | ethers.BigNumberish;
-  healthFactor: number;
-  estimatedProfitUsd: number;
-  timestamp: number;
+  collateralAsset: string | { address: string, symbol?: string, decimals?: number };
+  debtAsset: string | { address: string, symbol?: string, decimals?: number };
+  collateralAmount?: string | number;
+  debtAmount?: string | number;
+  healthFactor?: number;
+  expectedProfit?: number;
+  collateral?: Array<{ token: string, amount: number }>;
+  debt?: Array<{ token: string, amount: number }>;
 }
 
 // Built route for arbitrage execution

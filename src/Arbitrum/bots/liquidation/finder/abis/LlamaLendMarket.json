@@ -1,0 +1,6 @@
+
+[
+  "function oraclePrice() view returns (uint256)",
+  "function collateral(address user) view returns (uint256)",
+  "function borrowBalanceStored(address user) view returns (uint256)"
+]

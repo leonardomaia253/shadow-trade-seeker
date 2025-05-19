@@ -1,0 +1,10 @@
+
+[
+  "function balanceOf(address owner) view returns (uint256)",
+  "function decimals() view returns (uint8)",
+  "function symbol() view returns (string)",
+  "function transfer(address to, uint value) returns (bool)",
+  "function approve(address spender, uint value) returns (bool)",
+  "event Transfer(address indexed from, address indexed to, uint value)",
+  "event Approval(address indexed owner, address indexed spender, uint value)"
+]

@@ -1,0 +1,8 @@
+
+[
+  "function getAllMarkets() view returns (address[])",
+  "function oracle() view returns (address)",
+  "function getAccountLiquidity(address account) view returns (uint256, uint256, uint256)",
+  "function getAssetsIn(address account) view returns (address[])",
+  "event MarketEntered(address indexed cToken, address indexed account)"
+]

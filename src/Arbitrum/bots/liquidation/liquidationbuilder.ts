@@ -1,13 +1,33 @@
 
-// core/liquidation/builder.ts
 import { ethers } from "ethers";
 import { buildOrchestrateCall } from "../../shared/build/buildOrchestrate";
 import { encodePayMiner } from "../../shared/build/payMinerCall";
 import { CallData, DexType } from "../../utils/types";
 import { buildSwapTransaction } from "../../shared/build/buildSwap";
 import { getLiquidationCallData } from "../../shared/build/buildLiquidationCall";
-import { LENDING_PROTOCOL_ADDRESSES } from "../../constants/dexes"; // mapeamento: dex => router
+import { LENDING_PROTOCOL_ADDRESSES } from "../../constants/dexes"; 
 
+// Define the missing types
+interface AccountHealthData {
+  user: string;
+  debt: Array<{address: string, amount: number, decimals: number}>;
+  collateral: Array<{address: string, amount: number, decimals: number}>;
+}
+
+interface LiquidationBundleParams {
+  signer: ethers.Signer;
+  collateralAsset: string;
+  debtAsset: string;
+  userToLiquidate: string;
+  amountToRepay: string;
+  expectedProfitToken: string;
+  flashLoanToken: string;
+  flashLoanAmount: string;
+  minerReward: string;
+  protocol: "aave" | "compound" | "morpho" | "venus" | "spark";
+}
+
+type ProtocolType = "aave" | "compound" | "morpho" | "venus" | "spark" | "uniswapv3";
 
 export async function prepareAndBuildLiquidationCall(
   healthData: AccountHealthData,
@@ -40,8 +60,6 @@ export async function prepareAndBuildLiquidationCall(
   return bundle;
 }
 
-
-
 export async function buildLiquidationBundle({
   signer,
   collateralAsset,
@@ -53,31 +71,22 @@ export async function buildLiquidationBundle({
   flashLoanAmount,
   minerReward,
   protocol,
-}: {
-  signer: ethers.Signer;
-  collateralAsset: string;
-  debtAsset: string;
-  userToLiquidate: string;
-  amountToRepay: string;
-  expectedProfitToken: string;
-  flashLoanToken: string;
-  flashLoanAmount: string;
-  minerReward: string;
-  protocol?: "aave" | "compound" | "morpho" | "venus" | "spark";
-}): Promise<CallData> {
-  const defaultDex = "uniswapv3" as ProtocolType; 
+}: LiquidationBundleParams): Promise<CallData> {
+  const defaultDex: DexType = "uniswapv3"; 
   const protocolAddress = LENDING_PROTOCOL_ADDRESSES[protocol as ProtocolType];
-  const typedProtocol = protocol as ProtocolType;
+  const dexRouterAddress = "0xE592427A0AEce92De3Edee1F18E0157C05861564"; // Uniswap V3 Router
     
-  if (!dexRouterAddress) throw new Error(`[builder] Router address not found for DEX: ${dex}`);
+  if (!dexRouterAddress) throw new Error(`[builder] Router address not found for DEX: ${defaultDex}`);
 
   // 1. Get liquidation call
   const liquidationCallRes = await getLiquidationCallData({
-    fromToken: debtAsset,
-    toToken: collateralAsset,
-    amount: ethers.BigNumber.from(amountToRepay),
-    slippage: 0.01,
-    protocol
+    protocol: protocol,
+    params: {
+      fromToken: debtAsset,
+      toToken: collateralAsset,
+      amount: ethers.BigNumber.from(amountToRepay),
+      slippage: 0.01
+    }
   });
 
   // Create a liquidation call that conforms to CallData
@@ -92,13 +101,12 @@ export async function buildLiquidationBundle({
   };
 
   // 2. Swap collateral received -> flashLoanToken
-  const swapCall = await buildSwapTransaction({
-    fromToken: collateralAsset,
-    toToken: flashLoanToken,
-    amount: ethers.BigNumber.from(flashLoanAmount).div(2), // Use half as estimation
-    slippage: 0.01,
+  const swapCall = await buildSwapTransaction[defaultDex]({
+    tokenIn: collateralAsset,
+    tokenOut: flashLoanToken,
+    amountIn: ethers.BigNumber.from(flashLoanAmount).div(2), // Use half as estimation
     dex: defaultDex
-  });
+  }, "0x0");
 
   // 3. Pay miner with profit token
   const minerCallRaw = await encodePayMiner(

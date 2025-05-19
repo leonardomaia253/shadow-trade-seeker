@@ -48,3 +48,12 @@ export const DEX_FEE_TIERS: Record<DexType, number[]> = {
   uniswapv4: [1000, 3000, 5000], // 0.1%, 0.3%, 0.5%
   ramsesv2: [100, 500, 3000, 10000] // 0.01%, 0.05%, 0.3%, 1% 
 };
+
+// Add LENDING_PROTOCOL_ADDRESSES for the liquidation bot
+export const LENDING_PROTOCOL_ADDRESSES: Record<string, string> = {
+  "aave": "0x794a61358D6845594F94dc1DB02A252b5b4814aD", // Aave V3 Pool on Arbitrum
+  "compound": "0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B", // Compound Comptroller
+  "morpho": "0x777777c9898d384f785ee44acfe945efdfaba0f3", // Morpho on Arbitrum
+  "venus": "0x0000000000000000000000000000000000000000", // Not on Arbitrum
+  "spark": "0x0d5a3c9F5B687bff791E388B9A2F1F08693aB620" // Spark on Arbitrum
+};

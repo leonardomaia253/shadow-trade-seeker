@@ -1,0 +1,9 @@
+
+[
+  "function underlying() view returns (address)",
+  "function decimals() view returns (uint8)",
+  "function borrowBalanceStored(address account) view returns (uint256)",
+  "function balanceOfUnderlying(address account) view returns (uint256)",
+  "function balanceOf(address owner) view returns (uint256)",
+  "function exchangeRateStored() view returns (uint256)"
+]

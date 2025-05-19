@@ -13,6 +13,7 @@ interface Log {
   source?: string;
   tx_hash?: string;
   metadata?: any;
+  bot_type?: string;
 }
 
 interface BotLogsViewerProps {
