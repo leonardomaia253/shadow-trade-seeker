@@ -1,3 +1,4 @@
+
 import { buildOrchestrationFromRoute } from "../bots/arbitrage/arbitragebuilder";
 import { SwapStep, TokenInfo } from "../utils/types";
 import { ethers } from 'ethers';
@@ -38,8 +39,8 @@ export async function convertRouteToSwapSteps(
       tokenIn: swap.tokenIn,
       tokenOut: swap.tokenOut,
       dex: swap.dex,
-      amountIn: swap.amountIn.toBigInt(),
-      amountOut: swap.amountOut.toBigInt(),
+      amountIn: swap.amountIn,
+      amountOut: swap.amountOut,
       router,
       to: router,
       // ...outros campos se necessário
@@ -55,8 +56,8 @@ export async function convertRouteToSwapSteps(
       tokenIn: swap.tokenIn.address,
       tokenOut: swap.tokenOut.address,
       dex: swap.dex,
-      amountIn: swap.amountIn.toBigInt(),
-      amountOut: swap.amountOut.toBigInt(),
+      amountIn: swap.amountIn,
+      amountOut: swap.amountOut,
       router,
       to: router,
       data,

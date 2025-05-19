@@ -1,14 +1,23 @@
+
 import { ethers } from "ethers";
 
-export function getProvider(): ethers.providers.WebSocketProvider {
-  const wsUrl = "wss://arb-mainnet.g.alchemy.com/v2/o--1ruggGezl5R36rrSDX8JiVouHQOJO";
-  return new ethers.providers.WebSocketProvider(wsUrl);
+// Create a provider instance
+export const provider = new ethers.providers.JsonRpcProvider(
+  "https://arb-mainnet.g.alchemy.com/v2/o--1ruggGezl5R36rrSDX8JiVouHQOJO"
+);
+
+// Export a function to get a fresh provider instance
+export function getProvider(): ethers.providers.JsonRpcProvider {
+  return new ethers.providers.JsonRpcProvider(
+    "https://arb-mainnet.g.alchemy.com/v2/o--1ruggGezl5R36rrSDX8JiVouHQOJO"
+  );
 }
+
 // Tenderly configuration for simulations
 export const TENDERLY_CONFIG = {
   account: "Volup",
-  project: "project1",           // Replace in production
-  accessKey: process.env.TENDERLY_ACCESS_KEY || "your-tenderly-key", // Replace in production
+  project: "project1",
+  accessKey: process.env.TENDERLY_ACCESS_KEY || "your-tenderly-key",
 };
 
 // Flashbots configuration

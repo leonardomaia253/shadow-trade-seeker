@@ -1,3 +1,4 @@
+
 import { ethers } from "ethers";
 import { BigNumberish } from "ethers";
 import { BigNumber } from "ethers";
@@ -57,6 +58,8 @@ export interface CallData {
   requiresApproval?: boolean;
   approvalToken?: string;
   approvalAmount?: ethers.BigNumberish;
+  target?: string;     // compatibility with older code
+  callData?: string;   // compatibility with older code
 }
 
 // Simulation result type
@@ -110,6 +113,24 @@ export interface LiquidationOpportunity {
   expectedProfit?: number;
   collateral?: Array<{ token: string, amount: number }>;
   debt?: Array<{ token: string, amount: number }>;
+}
+
+// Account Health Data for Liquidation
+export interface AccountHealthData {
+  user: string;
+  healthFactor: number;
+  totalCollateralETH: number;
+  totalDebtETH: number;
+  collateral: Array<{ token: string, amount: number }>;
+  debt: Array<{ token: string, amount: number }>;
+}
+
+// Liquidation Bundle Parameters
+export interface LiquidationBundleParams {
+  protocol: string;
+  params: any;
+  fromToken?: string;
+  toToken?: string;
 }
 
 // Built route for arbitrage execution

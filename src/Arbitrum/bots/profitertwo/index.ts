@@ -1,10 +1,10 @@
+
 import { ethers } from "ethers";
 import { supabase } from "@/integrations/supabase/client";
 import { enhancedLogger } from "../../utils/enhancedLogger";
 
 // Import scanner functions
-// Note: In the actual implementation, you would need to have findBestArbitrageRoute in the profiter2scanner.ts
-import { scanForOpportunities } from "./profiter2scanner";
+import { findBestArbitrageRoute, scanForOpportunities } from "./profiter2scanner";
 import { buildOrchestrationFromRoute } from "./profiter2builder";
 
 // Main function to execute the bot
@@ -67,13 +67,40 @@ async function main() {
               // Execute the trade
               // Note: This is where you would build and execute the transaction
               try {
-                // Here we would call findBestArbitrageRoute from profiter2scanner and buildOrchestration 
-                // For now we just log that we would execute the trade
-                enhancedLogger.info("Would execute trade here", {
-                  category: "transaction",
-                  botType: "profiter-two",
-                  source: "executor"
-                });
+                // Here we call findBestArbitrageRoute from profiter2scanner and buildOrchestration
+                const route = await findBestArbitrageRoute(provider);
+                if (route) {
+                  const executor = "0xebc996030ad65e113ba2f03e55de080044b83dca"; // Replace with your actual executor address
+                  const orchestration = await buildOrchestrationFromRoute({
+                    route: route.steps,
+                    executor,
+                    useAltToken: true,
+                    altToken: COMMON_TOKENS_ARBITRUM.WETH
+                  });
+                  
+                  if (orchestration) {
+                    enhancedLogger.info("Orchestration built successfully, ready to execute", {
+                      category: "transaction",
+                      botType: "profiter-two",
+                      source: "executor"
+                    });
+                    
+                    // In a real implementation, you would execute the transaction here
+                    // const tx = await wallet.sendTransaction({
+                    //   to: executor,
+                    //   data: orchestration.calls[0].data,
+                    //   gasLimit: 3000000,
+                    //   gasPrice: await provider.getGasPrice()
+                    // });
+                    
+                    // enhancedLogger.info(`Transaction sent: ${tx.hash}`, {
+                    //   category: "transaction",
+                    //   botType: "profiter-two",
+                    //   source: "executor",
+                    //   tx_hash: tx.hash
+                    // });
+                  }
+                }
               } catch (execError) {
                 enhancedLogger.error(`Failed to execute trade: ${execError instanceof Error ? execError.message : String(execError)}`, {
                   category: "error",
@@ -112,6 +139,9 @@ async function main() {
     });
   }
 }
+
+// Import the COMMON_TOKENS_ARBITRUM constant
+import { COMMON_TOKENS_ARBITRUM } from "../../constants/addresses";
 
 // Start the bot
 main().catch(console.error);
