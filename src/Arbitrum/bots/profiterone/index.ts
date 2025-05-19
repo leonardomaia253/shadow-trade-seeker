@@ -10,7 +10,7 @@ import { convertRouteToSwapSteps } from "../../utils/swapsteps";
 import { createClient } from "@supabase/supabase-js";
 import { executorAddress } from "@/Arbitrum/constants/addresses";
 import { buildUnwrapWETHCall } from "@/Arbitrum/shared/build/UnwrapWETH";
-import {getWETHBalance} from "../../shared/build/BalanceOf"
+import {getWETHBalance} from "../../shared/build/BalanceOf";
 import {BigNumber, Wallet} from "ethers";
 import {buildSwapToETHCall} from "../../shared/build/buildSwapResidual";
 import { simulateTokenProfit } from "../../simulation/simulate";
@@ -99,7 +99,7 @@ async function executeCycle() {
 
     console.log(`✅ Tokens carregados: ${tokenList.length}. Rodando busca de arbitragem...`);
 
-    const bestRoute = await findBestArbitrageRoute({
+    const bestRoute = await findBestMultiHopRoute({
       provider,
       baseToken: currentBaseToken,
       tokenList,

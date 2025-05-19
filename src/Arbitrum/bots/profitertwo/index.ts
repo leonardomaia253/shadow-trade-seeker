@@ -166,7 +166,9 @@ function selectArbitrageTokens(allTokens: TokenInfo[]) {
   const scoredTokens = allTokens.map(token => {
     const routeKey = token.address;
     const history = previousSuccessfulRoutes.get(routeKey);
-    const score = history ? history.count * (1 + ethers.utils.formatEther(history.lastProfit)) : 0;
+    // Fix arithmetic operation error: convert BigNumber to number for calculation
+    const profitValue = history && history.lastProfit ? parseFloat(ethers.utils.formatEther(history.lastProfit)) : 0;
+    const score = history ? history.count * (1 + profitValue) : 0;
     return { token, score };
   });
   

@@ -25,9 +25,22 @@ module.exports = {
       // Include profiling for potential performance optimizations
       node_args: [
         "--trace-warnings",
+        "--max-old-space-size=2048", // Limit memory usage
         // Uncomment below for enhanced debugging if needed
         // "--inspect",
       ],
+      // Health check endpoint
+      health_check: {
+        url: "http://localhost:3001/health",
+        protocol: "http",
+        port: 3001,
+        path: "/health",
+        interval: 30000, // 30 seconds
+        timeout: 5000, // 5 seconds
+      },
+      // Graceful shutdown
+      kill_timeout: 10000, // Give the app 10 seconds to gracefully terminate
+      shutdown_with_message: true, // Allow the process to cleanup when receiving a shutdown signal
     },
   ],
 };
