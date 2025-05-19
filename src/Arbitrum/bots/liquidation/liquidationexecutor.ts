@@ -23,14 +23,26 @@ export async function executeLiquidation({
   opportunity: LiquidationOpportunity;
 }): Promise<boolean> {
   try {
+    // Start execution - detailed logging
     log.info("Starting liquidation execution", {
       category: "execution",
       protocol: opportunity.protocol,
-      user: opportunity.userAddress
+      user: opportunity.userAddress,
+      executionStep: "start",
+      timestamp: new Date().toISOString(),
+      params: {
+        debtAsset: opportunity.debtAsset?.address || opportunity.debtAsset,
+        collateralAsset: opportunity.collateralAsset?.address || opportunity.collateralAsset,
+        debtAmount: opportunity.debtAmount?.toString() || "0",
+      }
     });
     
     const blockNumber = await provider.getBlockNumber();
-    log.debug("Current block number", { category: "blockchain", blockNumber });
+    log.debug("Current block number", { 
+      category: "blockchain", 
+      blockNumber,
+      executionStep: "get_block"
+    });
 
     // Ensure all values are strings to match expected interface
     const collateralAsset = typeof opportunity.collateralAsset === 'string' 
@@ -43,6 +55,7 @@ export async function executeLiquidation({
 
     log.info("Building liquidation bundle", {
       category: "build",
+      executionStep: "preparing_builder",
       collateralAsset,
       debtAsset,
       debtAmount: opportunity.debtAmount?.toString()
@@ -64,7 +77,10 @@ export async function executeLiquidation({
 
     log.debug("Liquidation bundle built successfully", {
       category: "build",
-      target: bundleTx.target
+      executionStep: "bundle_built",
+      target: bundleTx.target,
+      callDataSize: bundleTx.callData.length,
+      valueAttached: bundleTx.value?.toString() || "0"
     });
 
     // Populate transaction
@@ -79,23 +95,46 @@ export async function executeLiquidation({
       type: 2,
     });
     
-    log.info("Signing transaction", { category: "execution" });
+    log.info("Signing transaction", { 
+      category: "execution",
+      executionStep: "signing",
+      gasLimit: txRequest.gasLimit?.toString(),
+      maxFeePerGas: txRequest.maxFeePerGas?.toString(),
+      nonce: txRequest.nonce
+    });
+    
     // Sign the transaction to obtain the rawTx
     const signedTx = await signer.signTransaction(txRequest);
     
-    log.info("Simulating liquidation with Tenderly", { category: "simulation" });
+    log.info("Simulating liquidation with Tenderly", { 
+      category: "simulation",
+      executionStep: "simulate_start",
+      protocol: opportunity.protocol,
+      userToLiquidate: opportunity.userAddress
+    });
+    
     // Simulation with Tenderly (using the updated function that accepts a serialized tx string)
     const sim = await simulateBundleWithTenderly([signedTx]);
     
     if (!sim.success) {
       log.warn("Bundle failed in simulation, aborting", {
         category: "simulation",
-        error: sim.error
+        executionStep: "simulate_failed",
+        error: sim.error,
+        simulationResults: sim.results
       });
       return false;
     }
     
-    log.info("Simulation successful, sending bundle", { category: "execution" });
+    log.info("Simulation successful, sending bundle", { 
+      category: "execution", 
+      executionStep: "simulation_success",
+      simulationSummary: {
+        gasUsed: sim.results?.simulation_results?.[0]?.gas_used || "unknown",
+        blockNumber: sim.results?.simulation_results?.[0]?.block_number || "unknown"
+      }
+    });
+    
     // Send bundle with the signed transaction (as array of raw txs)
     await sendBundle(
       [{ signer, transaction: { raw: signedTx } }],
@@ -104,16 +143,23 @@ export async function executeLiquidation({
     
     log.info("Liquidation bundle sent successfully", {
       category: "execution",
+      executionStep: "bundle_sent",
       protocol: opportunity.protocol,
-      user: opportunity.userAddress
+      user: opportunity.userAddress,
+      timestamp: new Date().toISOString()
     });
     
     return true;
   } catch (error: any) {
     log.error("Error executing liquidation", {
       category: "exception", 
+      executionStep: "failed",
       error: error.message,
-      stack: error.stack
+      stack: error.stack,
+      opportunity: {
+        protocol: opportunity.protocol,
+        user: opportunity.userAddress
+      }
     });
     return false;
   }

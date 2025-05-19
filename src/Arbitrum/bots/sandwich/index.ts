@@ -2,7 +2,7 @@
 import dotenv from 'dotenv';
 import * as os from 'os'; // Import os module for system information
 import { enhancedLogger as baseLogger, createContextLogger } from '../../utils/enhancedLogger';
-import { createBotModuleLogger, checkDependencies } from '../../utils/botLogger';
+import { createBotModuleLogger, checkDependencies, updateBotStatus } from '../../utils/botLogger';
 import { createClient } from "@supabase/supabase-js";
 import './sandwichScanner';
 
@@ -133,6 +133,7 @@ process.on('uncaughtException', (error) => {
   
   // Log to database if available
   if (supabase) {
+    // Fix: Use .then().catch() pattern instead of just .catch()
     supabase.from('bot_logs').insert({
       level: 'critical',
       message: `Uncaught Exception: ${error.message}`,
@@ -140,7 +141,13 @@ process.on('uncaughtException', (error) => {
       bot_type: 'sandwich',
       source: 'system',
       metadata: { stack: error.stack }
-    }).catch(console.error);
+    }).then(result => {
+      if (result.error) {
+        console.error('Failed to log to database:', result.error);
+      }
+    }).catch(err => {
+      console.error('Error inserting log:', err);
+    });
   }
   
   // Attempt graceful recovery
@@ -160,6 +167,7 @@ process.on('unhandledRejection', (reason, promise) => {
   
   // Log to database if available
   if (supabase) {
+    // Fix: Use .then().catch() pattern instead of just .catch()
     supabase.from('bot_logs').insert({
       level: 'critical',
       message: `Unhandled Rejection: ${reasonStr}`,
@@ -167,7 +175,13 @@ process.on('unhandledRejection', (reason, promise) => {
       bot_type: 'sandwich',
       source: 'system',
       metadata: { reason: reasonStr }
-    }).catch(console.error);
+    }).then(result => {
+      if (result.error) {
+        console.error('Failed to log to database:', result.error);
+      }
+    }).catch(err => {
+      console.error('Error inserting log:', err);
+    });
   }
 });
 
@@ -188,6 +202,7 @@ setInterval(() => {
   
   // Log to database if available
   if (supabase) {
+    // Fix: Use .then().catch() pattern instead of just .catch()
     supabase.from('bot_logs').insert({
       level: 'debug',
       message: 'Memory usage stats',
@@ -195,6 +210,12 @@ setInterval(() => {
       bot_type: 'sandwich',
       source: 'system',
       metadata: memStats
-    }).catch(console.error);
+    }).then(result => {
+      if (result.error) {
+        console.error('Failed to log to database:', result.error);
+      }
+    }).catch(err => {
+      console.error('Error inserting log:', err);
+    });
   }
 }, 300000); // Every 5 minutes

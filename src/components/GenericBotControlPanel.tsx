@@ -1,14 +1,23 @@
 
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AlertTriangle, Check, Clock, Play, Power, Settings } from "lucide-react";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Play, Activity, TrendingUp, BarChart, CircleDollarSign } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
+import { TokenInfo } from "@/Arbitrum/utils/types";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-interface BotControlPanelProps {
-  botType: 'arbitrage' | 'profiter-one' | 'profiter-two' | 'liquidation' | 'frontrun' | 'sandwich';
+interface BotModuleStatus {
+  [key: string]: string;
+}
+
+interface GenericBotControlPanelProps {
+  botType: string;
   isRunning: boolean;
+  isStarting?: boolean;
+  isStopping?: boolean;
   onStart: () => void;
   onStop: () => void;
   stats: {
@@ -16,237 +25,208 @@ interface BotControlPanelProps {
     successRate: number;
     avgProfit: number;
     totalTxs: number;
-    gasSpent?: number;
-    is_running?: boolean;
+    gasSpent: number;
   };
-  baseToken: any;
+  baseToken: TokenInfo;
   profitThreshold: number;
+  moduleStatus?: BotModuleStatus;
+  lastUpdate?: string | null;
 }
 
-const GenericBotControlPanel = ({ botType, isRunning, onStart, onStop, stats, baseToken, profitThreshold }: BotControlPanelProps) => {
-  const { toast } = useToast();
-  const [isProcessing, setIsProcessing] = React.useState(false);
-  
-  const getBotTitle = () => {
-    switch(botType) {
-      case 'arbitrage': return 'Arbitrage Bot Control';
-      case 'profiter-one': return 'Profiter One Control';
-      case 'profiter-two': return 'Profiter Two Control';
-      case 'liquidation': return 'Liquidation Bot Control';
-      case 'frontrun': return 'Frontrun Bot Control';
-      case 'sandwich': return 'Sandwich Bot Control';
-      default: return 'Bot Control Center';
+const GenericBotControlPanel: React.FC<GenericBotControlPanelProps> = ({
+  botType,
+  isRunning,
+  isStarting = false,
+  isStopping = false,
+  onStart,
+  onStop,
+  stats,
+  baseToken,
+  profitThreshold,
+  moduleStatus = {},
+  lastUpdate
+}) => {
+  const formatEth = (value: number) => {
+    return `${value.toFixed(6)} ${baseToken.symbol}`;
+  };
+
+  const getStatusBadge = () => {
+    if (isStarting) {
+      return <Badge variant="outline" className="bg-yellow-500 border-yellow-400 text-white">Starting...</Badge>;
+    }
+    if (isStopping) {
+      return <Badge variant="outline" className="bg-yellow-500 border-yellow-400 text-white">Stopping...</Badge>;
+    }
+    return isRunning ? (
+      <Badge variant="outline" className="bg-green-500 border-green-400 text-white">Running</Badge>
+    ) : (
+      <Badge variant="outline" className="bg-red-500 border-red-400 text-white">Stopped</Badge>
+    );
+  };
+
+  const getModuleStatusIcon = (status: string) => {
+    switch (status) {
+      case 'active':
+        return <Check className="h-4 w-4 text-green-400" />;
+      case 'warning':
+        return <AlertTriangle className="h-4 w-4 text-yellow-400" />;
+      case 'error':
+        return <AlertTriangle className="h-4 w-4 text-red-500" />;
+      case 'inactive':
+      default:
+        return <Power className="h-4 w-4 text-gray-400" />;
     }
   };
-  
-  const getControlEndpoint = () => {
-    switch(botType) {
-      case 'arbitrage': return 'arbitrage-bot-control';
-      case 'profiter-one': return 'profiter-one-bot-control';
-      case 'profiter-two': return 'profiter-two-bot-control';
-      case 'liquidation': return 'liquidation-bot-control';
-      case 'frontrun': return 'frontrun-bot-control';
-      case 'sandwich': return 'sandwich-bot-control';
-      default: return 'arbitrage-bot-control';
-    }
-  };
-  
-  const handleStart = async () => {
-    if (isRunning || isProcessing) return;
-    
-    setIsProcessing(true);
-    try {
-      // Log UI action
-      await supabase.from('bot_logs').insert({
-        level: 'info',
-        message: 'Start button clicked',
-        category: 'user_action',
-        bot_type: botType,
-        source: 'user'
-      });
-      
-      // Call the edge function to start the bot with configuration
-      const { data, error } = await supabase.functions.invoke(getControlEndpoint(), {
-        body: {
-          action: 'start',
-          config: {
-            baseToken: baseToken,
-            profitThreshold: profitThreshold
-          }
-        }
-      });
-      
-      if (error) throw error;
-      
-      toast({
-        title: "Bot Started",
-        description: `${getBotTitle()} is now running and searching for opportunities`,
-      });
-      
-      onStart();
-    } catch (err) {
-      console.error(`Failed to start ${botType} bot:`, err);
-      
-      // Log the error
-      await supabase.from('bot_logs').insert({
-        level: 'error',
-        message: `Failed to start bot: ${err.message || 'Unknown error'}`,
-        category: 'user_action',
-        bot_type: botType,
-        source: 'user',
-        metadata: { error: err.message, stack: err.stack }
-      });
-      
-      toast({
-        title: "Failed to start bot",
-        description: err.message || "An error occurred",
-        variant: "destructive"
-      });
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-  
-  const handleStop = async () => {
-    if (!isRunning || isProcessing) return;
-    
-    setIsProcessing(true);
-    try {
-      // Log UI action
-      await supabase.from('bot_logs').insert({
-        level: 'info',
-        message: 'Stop button clicked',
-        category: 'user_action',
-        bot_type: botType,
-        source: 'user'
-      });
-      
-      // Call the edge function to stop the bot
-      const { data, error } = await supabase.functions.invoke(getControlEndpoint(), {
-        body: {
-          action: 'stop'
-        }
-      });
-      
-      if (error) throw error;
-      
-      toast({
-        title: "Bot Stopped",
-        description: `${getBotTitle()} has been stopped`,
-      });
-      
-      onStop();
-    } catch (err) {
-      console.error(`Failed to stop ${botType} bot:`, err);
-      
-      // Log the error
-      await supabase.from('bot_logs').insert({
-        level: 'error',
-        message: `Failed to stop bot: ${err.message || 'Unknown error'}`,
-        category: 'user_action', 
-        bot_type: botType,
-        source: 'user',
-        metadata: { error: err.message, stack: err.stack }
-      });
-      
-      toast({
-        title: "Failed to stop bot",
-        description: err.message || "An error occurred",
-        variant: "destructive"
-      });
-    } finally {
-      setIsProcessing(false);
+
+  const getModuleStatusColor = (status: string) => {
+    switch (status) {
+      case 'active':
+        return "text-green-400";
+      case 'warning':
+        return "text-yellow-400";
+      case 'error':
+        return "text-red-500";
+      case 'inactive':
+      default:
+        return "text-gray-400";
     }
   };
 
   return (
     <Card className="bg-crypto-card border-crypto-border shadow-glow-sm">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-xl text-neon-blue flex items-center">
-          <Activity className="mr-2" /> {getBotTitle()}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-col space-y-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <div className="text-sm text-muted-foreground">Bot Status</div>
-              <div className="flex items-center mt-1">
-                {isRunning ? (
-                  <>
-                    <div className="h-3 w-3 rounded-full bg-neon-green mr-2 animate-pulse"></div>
-                    <span className="text-neon-green font-semibold">Running</span>
-                  </>
-                ) : (
-                  <>
-                    <div className="h-3 w-3 rounded-full bg-red-500 mr-2"></div>
-                    <span className="text-red-500 font-semibold">Stopped</span>
-                  </>
-                )}
-              </div>
-            </div>
-            <div className="flex space-x-2">
-              <Button 
-                onClick={handleStart} 
-                disabled={isRunning || isProcessing}
-                className={`bg-neon-green hover:bg-neon-green/80 text-black ${isRunning || isProcessing ? 'opacity-50' : ''}`}
-              >
-                {isProcessing ? (
-                  <span className="animate-pulse">Processing...</span>
-                ) : (
-                  <>
-                    <Play className="mr-1 h-4 w-4" /> Start
-                  </>
-                )}
-              </Button>
-              <Button 
-                onClick={handleStop} 
-                disabled={!isRunning || isProcessing}
-                className={`bg-red-500 hover:bg-red-600 text-white ${!isRunning || isProcessing ? 'opacity-50' : ''}`}
-              >
-                {isProcessing ? (
-                  <span className="animate-pulse">Processing...</span>
-                ) : (
-                  <>
-                    <span className="mr-1">■</span> Stop
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t border-crypto-border">
-            <div className="text-center p-3 bg-crypto-darker rounded-md">
-              <div className="text-xs text-muted-foreground">Total Profit</div>
-              <div className="flex items-center justify-center mt-1">
-                <CircleDollarSign className="h-4 w-4 text-neon-green mr-1" />
-                <span className="text-neon-green font-semibold">{stats.totalProfit.toFixed(4)} ETH</span>
-              </div>
-            </div>
-            <div className="text-center p-3 bg-crypto-darker rounded-md">
-              <div className="text-xs text-muted-foreground">Success Rate</div>
-              <div className="flex items-center justify-center mt-1">
-                <TrendingUp className="h-4 w-4 text-neon-blue mr-1" />
-                <span className="text-neon-blue font-semibold">{stats.successRate.toFixed(1)}%</span>
-              </div>
-            </div>
-            <div className="text-center p-3 bg-crypto-darker rounded-md">
-              <div className="text-xs text-muted-foreground">Average Profit</div>
-              <div className="flex items-center justify-center mt-1">
-                <BarChart className="h-4 w-4 text-neon-pink mr-1" />
-                <span className="text-neon-pink font-semibold">{stats.avgProfit.toFixed(4)} ETH</span>
-              </div>
-            </div>
-            <div className="text-center p-3 bg-crypto-darker rounded-md">
-              <div className="text-xs text-muted-foreground">Transactions</div>
-              <div className="flex items-center justify-center mt-1">
-                <Activity className="h-4 w-4 text-neon-purple mr-1" />
-                <span className="text-neon-purple font-semibold">{stats.totalTxs}</span>
-              </div>
-            </div>
-          </div>
+      <CardHeader className="flex flex-row items-center justify-between pb-2 border-b border-crypto-border">
+        <CardTitle className="text-xl">{botType.charAt(0).toUpperCase() + botType.slice(1)} Bot Status</CardTitle>
+        <div className="flex items-center gap-2">
+          {getStatusBadge()}
+          <Tooltip>
+            <TooltipTrigger>
+              <Clock className="h-4 w-4 text-gray-400" />
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Last Updated: {lastUpdate || 'N/A'}</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
+      </CardHeader>
+      <CardContent className="pt-4">
+        <Tabs defaultValue="status">
+          <TabsList className="grid grid-cols-2 mb-4">
+            <TabsTrigger value="status">Status</TabsTrigger>
+            <TabsTrigger value="config">Configuration</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="status">
+            <div className="mb-4">
+              <h3 className="text-sm font-medium text-gray-400 mb-2">Module Status</h3>
+              <div className="grid grid-cols-3 gap-2">
+                {Object.keys(moduleStatus).length > 0 ? (
+                  Object.entries(moduleStatus).map(([module, status]) => (
+                    <div key={module} className="p-2 border rounded border-crypto-border flex items-center gap-2">
+                      {getModuleStatusIcon(status)}
+                      <div className="flex flex-col">
+                        <span className="text-xs font-medium">{module}</span>
+                        <span className={`text-xs ${getModuleStatusColor(status)}`}>{status}</span>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="col-span-3 text-sm text-gray-400">No module status available</div>
+                )}
+              </div>
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-gray-400 mb-2">Performance</h3>
+              <Table>
+                <TableBody>
+                  <TableRow>
+                    <TableCell className="py-1.5 text-sm font-medium">Total Profit</TableCell>
+                    <TableCell className="py-1.5 text-sm text-right">{formatEth(stats.totalProfit)}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="py-1.5 text-sm font-medium">Success Rate</TableCell>
+                    <TableCell className="py-1.5 text-sm text-right">{stats.successRate}%</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="py-1.5 text-sm font-medium">Average Profit</TableCell>
+                    <TableCell className="py-1.5 text-sm text-right">{formatEth(stats.avgProfit)}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="py-1.5 text-sm font-medium">Total Transactions</TableCell>
+                    <TableCell className="py-1.5 text-sm text-right">{stats.totalTxs}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="py-1.5 text-sm font-medium">Gas Spent</TableCell>
+                    <TableCell className="py-1.5 text-sm text-right">{formatEth(stats.gasSpent)}</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="config">
+            <Table>
+              <TableBody>
+                <TableRow>
+                  <TableCell className="py-1.5 text-sm font-medium">Base Token</TableCell>
+                  <TableCell className="py-1.5 text-sm text-right">{baseToken.symbol}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="py-1.5 text-sm font-medium">Min Profit Threshold</TableCell>
+                  <TableCell className="py-1.5 text-sm text-right">{profitThreshold} {baseToken.symbol}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="py-1.5 text-sm font-medium">Gas Multiplier</TableCell>
+                  <TableCell className="py-1.5 text-sm text-right">1.2x</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="py-1.5 text-sm font-medium">Slippage Tolerance</TableCell>
+                  <TableCell className="py-1.5 text-sm text-right">0.5%</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="py-1.5 text-sm font-medium">Target DEXs</TableCell>
+                  <TableCell className="py-1.5 text-sm text-right">Uniswap, SushiSwap</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </TabsContent>
+        </Tabs>
       </CardContent>
+      <CardFooter className="flex justify-between pt-2 border-t border-crypto-border">
+        <Button 
+          variant="outline" 
+          className="border-gray-600 text-gray-300"
+          size="sm"
+          onClick={onStart} 
+          disabled={isRunning || isStarting || isStopping}
+        >
+          {isStarting ? (
+            <>
+              <span className="animate-pulse mr-2">•</span>Starting...
+            </>
+          ) : (
+            <>
+              <Play className="mr-2 h-4 w-4" /> Start Bot
+            </>
+          )}
+        </Button>
+        <Button 
+          variant="outline" 
+          className="border-gray-600 text-gray-300"
+          size="sm"
+          onClick={onStop}
+          disabled={!isRunning || isStarting || isStopping}
+        >
+          {isStopping ? (
+            <>
+              <span className="animate-pulse mr-2">•</span>Stopping...
+            </>
+          ) : (
+            <>
+              <Power className="mr-2 h-4 w-4" /> Stop Bot
+            </>
+          )}
+        </Button>
+      </CardFooter>
     </Card>
   );
 };

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,7 +26,14 @@ interface BotStatistics {
 const SandwichBot = () => {
   const { toast } = useToast();
   const [isRunning, setIsRunning] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [moduleStatus, setModuleStatus] = useState({
+    scanner: 'inactive',
+    builder: 'inactive',
+    executor: 'inactive'
+  });
   const [baseToken, setBaseToken] = useState<TokenInfo>({
     address: "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",
     symbol: "WETH",
@@ -44,6 +50,7 @@ const SandwichBot = () => {
     gasSpent: 0,
     is_running: false
   });
+  const [lastUpdate, setLastUpdate] = useState<string | null>(null);
 
   // Initial fetch of bot state and data
   useEffect(() => {
@@ -74,6 +81,7 @@ const SandwichBot = () => {
           });
           
           setIsRunning(typedStatsData.is_running || false);
+          setLastUpdate(new Date(typedStatsData.updated_at).toLocaleString());
         } else {
           // Initialize stats in database if not exist
           await supabase.from('bot_statistics').insert({
@@ -86,6 +94,31 @@ const SandwichBot = () => {
             is_running: false,
             updated_at: new Date().toISOString()
           });
+        }
+        
+        // Fetch module status from logs
+        const { data: statusLogs } = await supabase
+          .from('bot_logs')
+          .select('*')
+          .eq('bot_type', 'sandwich')
+          .in('category', ['initialization', 'shutdown'])
+          .order('timestamp', { ascending: false })
+          .limit(10);
+          
+        if (statusLogs && statusLogs.length > 0) {
+          const newModuleStatus = { ...moduleStatus };
+          
+          // Find most recent logs for each module
+          ['scanner', 'builder', 'executor'].forEach(module => {
+            const moduleLog = statusLogs.find(log => log.source === module);
+            if (moduleLog) {
+              newModuleStatus[module] = moduleLog.category === 'initialization' ? 'active' : 'inactive';
+            } else {
+              newModuleStatus[module] = statsData?.is_running ? 'active' : 'inactive';
+            }
+          });
+          
+          setModuleStatus(newModuleStatus);
         }
         
         // Fetch recent transactions
@@ -133,6 +166,24 @@ const SandwichBot = () => {
             });
             
             setIsRunning(newData.is_running || false);
+            setLastUpdate(new Date(newData.updated_at).toLocaleString());
+            
+            // If the bot just turned on or off, update UI state
+            if (newData.is_running && isStarting) {
+              setIsStarting(false);
+              toast({
+                title: "Bot Started Successfully",
+                description: "Sandwich Bot is now running and monitoring for opportunities",
+                variant: "default"
+              });
+            } else if (!newData.is_running && isStopping) {
+              setIsStopping(false);
+              toast({
+                title: "Bot Stopped Successfully",
+                description: "Sandwich Bot has been stopped",
+                variant: "default"
+              });
+            }
           })
       .subscribe();
       
@@ -146,44 +197,164 @@ const SandwichBot = () => {
           })
       .subscribe();
       
+    // Subscribe to real-time updates for module status logs
+    const moduleStatusChannel = supabase
+      .channel('sandwich-modulestatus-updates')
+      .on('postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'bot_logs', filter: 'bot_type=eq.sandwich' },
+          (payload) => {
+            if (['initialization', 'shutdown'].includes(payload.new.category) && 
+                ['scanner', 'builder', 'executor'].includes(payload.new.source)) {
+              setModuleStatus(prev => ({
+                ...prev,
+                [payload.new.source]: payload.new.category === 'initialization' ? 'active' : 'inactive'
+              }));
+            }
+          })
+      .subscribe();
+      
     return () => {
       supabase.removeChannel(statsChannel);
       supabase.removeChannel(txChannel);
+      supabase.removeChannel(moduleStatusChannel);
     };
-  }, [toast]);
+  }, [toast, isStarting, isStopping]);
 
   const handleStartBot = async () => {
-    if (isRunning) return;
-    setIsRunning(true);
+    if (isRunning || isStarting) return;
+    
+    setIsStarting(true);
+    
+    try {
+      // Call Supabase Edge Function to start the bot
+      const response = await fetch(`${supabase.functions.url}/sandwich-bot-control`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabase.auth.session()?.access_token || ''}`
+        },
+        body: JSON.stringify({
+          action: 'start',
+          config: {
+            minProfitThreshold: profitThreshold,
+            minSlippageThreshold: 0.5, // Default slippage threshold 0.5%
+            targetDEXs: ['Uniswap', 'SushiSwap'], // Default DEXs to target
+            gasMultiplier: 1.2
+          }
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.message || "Failed to start bot");
+      }
+      
+      toast({
+        title: "Starting Bot",
+        description: "The bot is initializing, please wait...",
+        variant: "default"
+      });
+      
+      // UI state is updated via realtime subscription when bot actually starts
+      
+    } catch (error: any) {
+      console.error('Error starting bot:', error);
+      setIsStarting(false);
+      toast({
+        title: "Failed to Start Bot",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleStopBot = async () => {
-    if (!isRunning) return;
-    setIsRunning(false);
+    if (!isRunning || isStopping) return;
+    
+    setIsStopping(true);
+    
+    try {
+      // Call Supabase Edge Function to stop the bot
+      const response = await fetch(`${supabase.functions.url}/sandwich-bot-control`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabase.auth.session()?.access_token || ''}`
+        },
+        body: JSON.stringify({
+          action: 'stop'
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.message || "Failed to stop bot");
+      }
+      
+      toast({
+        title: "Stopping Bot",
+        description: "The bot is stopping, please wait...",
+        variant: "default"
+      });
+      
+      // UI state is updated via realtime subscription when bot actually stops
+      
+    } catch (error: any) {
+      console.error('Error stopping bot:', error);
+      setIsStopping(false);
+      toast({
+        title: "Failed to Stop Bot",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive"
+      });
+    }
   };
 
-  const handleUpdateConfig = (config: any) => {
+  const handleUpdateConfig = async (config: any) => {
     setBaseToken(config.baseToken);
     setProfitThreshold(config.profitThreshold);
     
-    toast({
-      title: "Configuration Updated",
-      description: "Bot configuration has been updated",
-    });
-    
-    // Log configuration changes
-    const logConfigChange = async () => {
-      await supabase.from('bot_logs').insert({
-        level: 'info',
-        message: 'Bot configuration updated',
-        category: 'configuration',
-        bot_type: 'sandwich',
-        source: 'user',
-        metadata: { baseToken: config.baseToken.symbol, profitThreshold: config.profitThreshold }
+    try {
+      // Update configuration in database via edge function
+      const response = await fetch(`${supabase.functions.url}/sandwich-bot-control`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabase.auth.session()?.access_token || ''}`
+        },
+        body: JSON.stringify({
+          action: 'updateConfig',
+          config: {
+            minProfitThreshold: config.profitThreshold,
+            minSlippageThreshold: 0.5,
+            targetDEXs: ['Uniswap', 'SushiSwap'],
+            gasMultiplier: 1.2,
+            baseToken: config.baseToken.symbol
+          }
+        })
       });
-    };
-    
-    logConfigChange();
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.message || "Failed to update configuration");
+      }
+      
+      toast({
+        title: "Configuration Updated",
+        description: "Bot configuration has been updated successfully",
+      });
+      
+    } catch (error: any) {
+      console.error('Error updating config:', error);
+      toast({
+        title: "Configuration Update Failed",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive"
+      });
+    }
   };
 
   if (isLoading) {
@@ -215,11 +386,15 @@ const SandwichBot = () => {
             <GenericBotControlPanel 
               botType="sandwich"
               isRunning={isRunning} 
+              isStarting={isStarting}
+              isStopping={isStopping}
               onStart={handleStartBot} 
               onStop={handleStopBot} 
               stats={stats}
               baseToken={baseToken}
               profitThreshold={profitThreshold}
+              moduleStatus={moduleStatus}
+              lastUpdate={lastUpdate}
             />
           </div>
         </div>
