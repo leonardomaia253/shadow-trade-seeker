@@ -12,14 +12,10 @@ const corsHeaders = {
 async function startBot(supabase, config) {
   const { baseToken, profitThreshold, gasMultiplier, maxGasPrice } = config || {};
 
-  if (!baseToken) {
-    throw new Error("Missing required parameter: baseToken");
-  }
-
   // Log bot start event
   await supabase.from('bot_logs').insert({
     level: 'info',
-    message: `Profiter-Two bot started with ${baseToken?.symbol} as base token and ${profitThreshold} ETH profit threshold`,
+    message: `Profiter Two bot started with ${baseToken.symbol} as base token and ${profitThreshold} ETH profit threshold`,
     category: 'bot_state',
     bot_type: 'profiter-two',
     source: 'system',
@@ -41,7 +37,7 @@ async function startBot(supabase, config) {
       category: 'health_check',
       bot_type: 'profiter-two',
       source: module,
-      metadata: { status: 'inactive', details: 'Module starting up' }
+      metadata: { status: 'active', details: 'Module starting up' }
     });
   }
   
@@ -53,7 +49,7 @@ async function stopBot(supabase) {
   // Log bot stop event
   await supabase.from('bot_logs').insert({
     level: 'info',
-    message: 'Profiter-Two bot stopped',
+    message: 'Profiter Two bot stopped',
     category: 'bot_state',
     bot_type: 'profiter-two',
     source: 'system'
@@ -85,14 +81,10 @@ async function stopBot(supabase) {
 async function updateBotConfig(supabase, config) {
   const { baseToken, profitThreshold, gasMultiplier, maxGasPrice } = config || {};
   
-  if (!baseToken) {
-    throw new Error("Missing required parameter: baseToken");
-  }
-  
   // Log configuration update
   await supabase.from('bot_logs').insert({
     level: 'info',
-    message: `Bot configuration updated: profit threshold=${profitThreshold} ETH, base token=${baseToken?.symbol}`,
+    message: `Bot configuration updated: profit threshold=${profitThreshold} ETH, base token=${baseToken.symbol}`,
     category: 'configuration',
     bot_type: 'profiter-two',
     source: 'system',
@@ -105,6 +97,8 @@ async function updateBotConfig(supabase, config) {
   });
   
   // The actual bot will pick up these configuration changes from the database
+  // and apply them on the next execution cycle
+  
   return { success: true, message: "Configuration updated successfully" };
 }
 
@@ -144,7 +138,7 @@ async function getBotStatus(supabase) {
   if (logsError) {
     throw new Error(`Failed to fetch logs: ${logsError.message}`);
   }
-  
+
   // Get module health status
   const { data: healthLogs, error: healthError } = await supabase
     .from('bot_logs')
