@@ -121,7 +121,7 @@ export async function buildLiquidationBundle({
   // Convert to proper CallData format
   const minerCall: CallData = {
     to: minerCallRaw.to || "",
-    data: minerCallRaw.data || "",
+    data: String(minerCallRaw.data || ""), // Fix: Explicitly convert BytesLike to string
     dex: defaultDex,
     value: ethers.BigNumber.from(minerCallRaw.value?.toString() || "0"),
     requiresApproval: false,
@@ -144,7 +144,7 @@ export async function buildLiquidationBundle({
     to: orchestrateResult.to || "",
     data: String(orchestrateResult.data || ""),
     dex: defaultDex,
-    value: ethers.BigNumber.from(orchestrateResult.value?.toString() || "0"),
+    value: ethers.BigNumber.from("0"), // Fix: orchestrateResult.value doesn't exist, using default "0"
     requiresApproval: false, // The orchestrate contract handles approvals internally
     approvalToken: "",
     approvalAmount: ethers.BigNumber.from(0)
