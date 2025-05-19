@@ -124,7 +124,7 @@ function getDefaultRpcUrls(chainId: number): string[] {
   switch (chainId) {
     case 42161: // Arbitrum One
       return [
-        process.env.ALCHEMY_WSS || "wss://arb-mainnet.g.alchemy.com/v2/demo",
+        process.env.ALCHEMY_WSS || "wss://arbitrum-mainnet.infura.io/ws/v3/o--1ruggGezl5R36rrSDX8JiVouHQOJO",
         process.env.INFURA_WSS || "wss://arbitrum-mainnet.infura.io/ws/v3/9aa3d95b3bc440fa88ea12eaa4456161",
         "https://arb1.arbitrum.io/rpc",
         "https://arbitrum-one.public.blastapi.io"
