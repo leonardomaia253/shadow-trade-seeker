@@ -421,7 +421,7 @@ async function updateBotConfig(supabase, config) {
   return { success: true, message: "Configuration updated successfully" };
 }
 
-// Function to report module status
+// Function to report module status for testing
 async function updateModuleStatus(supabase, moduleData) {
   const { module, status, details, silent_errors } = moduleData || {};
   
