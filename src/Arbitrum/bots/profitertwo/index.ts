@@ -22,6 +22,7 @@ import { validateTransaction, RateLimiter } from "../../utils/securityUtils";
 import { createContextLogger } from "../../utils/enhancedLogger";
 import { startHealthServer, updateBotMetrics, updateBotStatus, registerShutdownHandlers } from "../../utils/healthMonitor";
 import { createBotModuleLogger, checkDependencies } from "../../utils/botLogger";
+import { JsonRpcProvider } from 'ethers';
 
 // Initialize Supabase client for database interaction
 const supabaseUrl = process.env.SUPABASE_URL!;
@@ -67,7 +68,7 @@ const MAX_GAS_PRICE = parseFloat(process.env.MAX_GAS_PRICE || "100"); // em gwei
 const HEALTH_PORT = parseInt(process.env.HEALTH_PORT || "3001");
 
 // Initialize provider and signer with resilience
-const provider = createResilientProvider();
+const provider = new JsonRpcProvider("https://arb1.arbitrum.io/rpc");
 const signer = new Wallet(process.env.PRIVATE_KEY!, provider);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
