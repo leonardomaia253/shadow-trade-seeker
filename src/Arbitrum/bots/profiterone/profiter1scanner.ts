@@ -83,7 +83,11 @@ async function getBestQuote(
   }
 
   // Ordena para pegar o melhor output
-  quotes.sort((a, b) => b.amountOut.sub(a.amountOut).toNumber());
+  quotes.sort((a, b) => {
+  if (a.amountOut.gt(b.amountOut)) return -1;
+  if (a.amountOut.lt(b.amountOut)) return 1;
+  return 0;
+});
   const bestQuote = quotes[0];
 
   quoteCache.set(cacheKey, { timestamp: Date.now(), result: bestQuote });
