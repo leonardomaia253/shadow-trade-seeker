@@ -1,4 +1,3 @@
-
 import { ethers } from "ethers";
 import "dotenv/config";
 import { createResilientProvider } from "../../config/resilientProvider";
@@ -814,7 +813,9 @@ async function loop() {
                 value: "0x0",
               }, { r: "0x", s: "0x", v: 27 });
               
-              const result = await simulateBundleWithTenderly([testTx]);
+              // Fix: Cast provider to JsonRpcProvider type to satisfy simulateBundleWithTenderly parameter type
+              const jsonRpcProvider = provider as ethers.providers.JsonRpcProvider;
+              const result = await simulateBundleWithTenderly([testTx], jsonRpcProvider);
               return result.success || result.results !== undefined;
             } catch {
               return false;

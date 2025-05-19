@@ -131,7 +131,7 @@ process.on('uncaughtException', (error) => {
   
   // Log to database if available
   if (supabase) {
-    // Fix: Use .then().catch() pattern instead of just .catch()
+    // Fix: Use Promise chain properly instead of .catch()
     supabase.from('bot_logs').insert({
       level: 'critical',
       message: `Uncaught Exception: ${error.message}`,
@@ -143,7 +143,7 @@ process.on('uncaughtException', (error) => {
       if (result.error) {
         console.error('Failed to log to database:', result.error);
       }
-    }).catch(err => {
+    }).catch((err: Error) => {
       console.error('Error inserting log:', err);
     });
   }
@@ -165,7 +165,7 @@ process.on('unhandledRejection', (reason, promise) => {
   
   // Log to database if available
   if (supabase) {
-    // Fix: Use .then().catch() pattern instead of just .catch()
+    // Fix: Use Promise chain properly instead of .catch()
     supabase.from('bot_logs').insert({
       level: 'critical',
       message: `Unhandled Rejection: ${reasonStr}`,
@@ -177,7 +177,7 @@ process.on('unhandledRejection', (reason, promise) => {
       if (result.error) {
         console.error('Failed to log to database:', result.error);
       }
-    }).catch(err => {
+    }).catch((err: Error) => {
       console.error('Error inserting log:', err);
     });
   }
@@ -200,7 +200,7 @@ setInterval(() => {
   
   // Log to database if available
   if (supabase) {
-    // Fix: Use .then().catch() pattern instead of just .catch()
+    // Fix: Use Promise chain properly instead of .catch()
     supabase.from('bot_logs').insert({
       level: 'debug',
       message: 'Memory usage stats',
@@ -212,7 +212,7 @@ setInterval(() => {
       if (result.error) {
         console.error('Failed to log to database:', result.error);
       }
-    }).catch(err => {
+    }).catch((err: Error) => {
       console.error('Error inserting log:', err);
     });
   }

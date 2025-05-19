@@ -44,14 +44,14 @@ export async function executeLiquidation({
       executionStep: "get_block"
     });
 
-    // Ensure all values are strings to match expected interface
+    // Fix: Ensure all values are strings to match expected interface by checking type
     const collateralAsset = typeof opportunity.collateralAsset === 'string' 
       ? opportunity.collateralAsset 
-      : opportunity.collateralAsset.address;
+      : opportunity.collateralAsset?.address || ''; // Add fallback for null/undefined
       
     const debtAsset = typeof opportunity.debtAsset === 'string' 
       ? opportunity.debtAsset 
-      : opportunity.debtAsset.address;
+      : opportunity.debtAsset?.address || ''; // Add fallback for null/undefined
 
     log.info("Building liquidation bundle", {
       category: "build",
