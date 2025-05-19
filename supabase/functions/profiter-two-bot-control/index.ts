@@ -10,16 +10,20 @@ const corsHeaders = {
 
 // Function to start the profiter-two bot
 async function startBot(supabase, config) {
-  const { baseToken, profitThreshold } = config;
+  const { baseToken, profitThreshold, gasMultiplier, maxGasPrice } = config || {};
+
+  if (!baseToken) {
+    throw new Error("Missing required parameter: baseToken");
+  }
 
   // Log bot start event
   await supabase.from('bot_logs').insert({
     level: 'info',
-    message: `Profiter-Two bot started with ${baseToken.symbol} as base token and ${profitThreshold} ETH profit threshold`,
+    message: `Profiter-Two bot started with ${baseToken?.symbol} as base token and ${profitThreshold} ETH profit threshold`,
     category: 'bot_state',
     bot_type: 'profiter-two',
     source: 'system',
-    metadata: { baseToken, profitThreshold }
+    metadata: { baseToken, profitThreshold, gasMultiplier, maxGasPrice }
   });
   
   // Update bot status in database to trigger the bot to start
@@ -53,12 +57,16 @@ async function stopBot(supabase) {
 
 // Function to update the bot's configuration
 async function updateBotConfig(supabase, config) {
-  const { baseToken, profitThreshold, gasMultiplier, maxGasPrice } = config;
+  const { baseToken, profitThreshold, gasMultiplier, maxGasPrice } = config || {};
+  
+  if (!baseToken) {
+    throw new Error("Missing required parameter: baseToken");
+  }
   
   // Log configuration update
   await supabase.from('bot_logs').insert({
     level: 'info',
-    message: `Bot configuration updated: profit threshold=${profitThreshold} ETH, base token=${baseToken.symbol}`,
+    message: `Bot configuration updated: profit threshold=${profitThreshold} ETH, base token=${baseToken?.symbol}`,
     category: 'configuration',
     bot_type: 'profiter-two',
     source: 'system',

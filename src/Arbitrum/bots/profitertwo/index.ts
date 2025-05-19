@@ -205,7 +205,6 @@ async function validateOpportunity(route: any, calls: any[]) {
       
       simulationLogger.logSimulation("All transactions validated successfully", {}, true);
       
-      // Simula a transação usando Tenderly
       // Fix type issue by creating a JSON-RPC compatible transaction object
       const bundleTxs = calls.map((tx) => ({
         signer: signer,
@@ -240,9 +239,7 @@ async function validateOpportunity(route: any, calls: any[]) {
         transactionCount: simulationTransactions.length
       }, true);
       
-      // Fix: Pass simulationTransactions directly without the second parameter
-      // The Tenderly simulation function will use default provider or won't need it
-      // with serialized transactions
+      // Pass only the serialized transactions array without provider parameter
       const simulationResult = await simulateBundleWithTenderly(simulationTransactions);
       
       simulationLogger.logSimulation("Tenderly simulation completed", { 
@@ -815,8 +812,7 @@ async function loop() {
                 value: "0x0",
               }, { r: "0x", s: "0x", v: 27 });
               
-              // Fix: Removed the second parameter to simulateBundleWithTenderly
-              // Pass only the serialized transaction array
+              // Fix: Only pass the serialized transaction array, no provider parameter
               const result = await simulateBundleWithTenderly([testTx]);
               return result.success || result.results !== undefined;
             } catch {
