@@ -9,12 +9,12 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "arbitrage": "node --loader ts-node/esm src/Arbitrum/bots/arbitrage/index.ts",
-    "profiterone": "node --loader ts-node/esm src/Arbitrum/bots/profiterone/index.ts",
-    "profitertwo": "node --loader ts-node/esm src/Arbitrum/bots/profitertwo/index.ts",
-    "frontrunscanner": "node --loader ts-node/esm src/Arbitrum/bots/frontrun/index.ts",
-    "sandwichscanner": "node --loader ts-node/esm src/Arbitrum/bots/sandwich/index.ts",
-    "liquidation": "node --loader ts-node/esm src/Arbitrum/bots/liquidation/index.ts"
+    "arbitrage": "ts-node-esm --project tsconfig.node.json src/Arbitrum/bots/arbitrage/index.ts",
+    "profiterone": "ts-node-esm --project tsconfig.node.json src/Arbitrum/bots/profiterone/index.ts",
+    "profitertwo": "ts-node-esm --project tsconfig.node.json src/Arbitrum/bots/profitertwo/index.ts",
+    "frontrunscanner": "ts-node-esm --project tsconfig.node.json src/Arbitrum/bots/frontrun/index.ts",
+    "sandwichscanner": "ts-node-esm --project tsconfig.node.json src/Arbitrum/bots/sandwich/index.ts",
+    "liquidation": "ts-node-esm --project tsconfig.node.json src/Arbitrum/bots/liquidation/index.ts"
 },
   "dependencies": {
     "@ethersproject/providers": "^5.8.0",
