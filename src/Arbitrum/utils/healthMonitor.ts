@@ -1,4 +1,4 @@
-
+import os from 'os';
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
@@ -100,7 +100,6 @@ async function getSystemInfo() {
 // Simple system metrics functions
 function getCpuLoad(): number[] {
   try {
-    const os = require('os');
     return os.loadavg();
   } catch (error) {
     return [0, 0, 0];
@@ -109,7 +108,6 @@ function getCpuLoad(): number[] {
 
 function getMemoryFree(): number {
   try {
-    const os = require('os');
     return os.freemem();
   } catch (error) {
     return 0;
@@ -118,7 +116,6 @@ function getMemoryFree(): number {
 
 function getMemoryTotal(): number {
   try {
-    const os = require('os');
     return os.totalmem();
   } catch (error) {
     return 0;
