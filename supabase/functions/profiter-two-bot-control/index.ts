@@ -187,6 +187,124 @@ Deno.serve(async (req) => {
         }
       }
       
+      case 'status': {
+        // Get current bot statistics
+        const { data: statistics, error: statsError } = await supabase
+          .from('bot_statistics')
+          .select('*')
+          .eq('bot_type', 'profiter-two')
+          .single();
+        
+        if (statsError) {
+          throw new Error(`Failed to fetch bot statistics: ${statsError.message}`);
+        }
+        
+        // Get recent transactions (last 10)
+        const { data: transactions, error: txError } = await supabase
+          .from('bot_transactions')
+          .select('*')
+          .eq('bot_type', 'profiter-two')
+          .order('timestamp', { ascending: false })
+          .limit(10);
+        
+        if (txError) {
+          throw new Error(`Failed to fetch transactions: ${txError.message}`);
+        }
+        
+        // Get recent logs (last 20)
+        const { data: logs, error: logsError } = await supabase
+          .from('bot_logs')
+          .select('*')
+          .eq('bot_type', 'profiter-two')
+          .order('timestamp', { ascending: false })
+          .limit(20);
+        
+        if (logsError) {
+          throw new Error(`Failed to fetch logs: ${logsError.message}`);
+        }
+        
+        // Get module health status
+        const { data: healthLogs, error: healthError } = await supabase
+          .from('bot_logs')
+          .select('*')
+          .eq('bot_type', 'profiter-two')
+          .eq('category', 'health_check')
+          .order('timestamp', { ascending: false });
+          
+        // Process module status from health check logs
+        let moduleStatus = {};
+        if (healthLogs && healthLogs.length > 0) {
+          const seenModules = new Set();
+          healthLogs.forEach(log => {
+            const module = log.source;
+            if (module && !seenModules.has(module)) {
+              seenModules.add(module);
+              
+              const silentErrors = log.metadata?.silent_errors || [];
+              const needsFix = silentErrors.length > 0 || log.metadata?.status === 'error';
+              
+              moduleStatus[module] = {
+                status: log.metadata?.status || 'inactive',
+                health: needsFix ? 'needs_fix' : (log.metadata?.health || log.metadata?.status || 'inactive'),
+                lastChecked: log.timestamp,
+                details: log.metadata,
+                silentErrors: silentErrors,
+                needsAttention: needsFix
+              };
+            }
+          });
+        }
+        
+        // Ensure all standard modules are represented
+        const standardModules = ['scanner', 'builder', 'executor', 'watcher'];
+        standardModules.forEach(module => {
+          if (!moduleStatus[module]) {
+            moduleStatus[module] = {
+              status: 'inactive',
+              health: 'inactive',
+              lastChecked: undefined,
+              details: {},
+              silentErrors: [],
+              needsAttention: false
+            };
+          }
+        });
+        
+        // Get PM2 status
+        try {
+          const pm2StatusResult = await client.getProcessStatus('profiter-two');
+          
+          return new Response(
+            JSON.stringify({
+              success: true,
+              status: statistics?.is_running ? "running" : "stopped",
+              pm2Status: pm2StatusResult?.status || "unknown",
+              statistics,
+              transactions,
+              logs,
+              moduleStatus
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          // Continue even if PM2 status check fails
+          console.error("Failed to get PM2 status:", error);
+          
+          return new Response(
+            JSON.stringify({
+              success: true,
+              status: statistics?.is_running ? "running" : "stopped",
+              pm2Status: "unknown",
+              statistics,
+              transactions,
+              logs,
+              moduleStatus
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+      
       default:
         throw new Error(`Unsupported action: ${action}`)
     }
