@@ -1,14 +1,14 @@
 
 import { ethers } from "ethers";
 import { getProvider } from "../../config/provider";
-import { buildOrchestrationFromRoute } from "./arbitragebuilder";
+import { buildOrchestrationFromRoute } from "./arbitragebuilder.ts";
 import { fetchTopTokensArbitrum } from "../../utils/tokensdefi";
 import { findBestArbitrageRoute } from "./arbitrageScanner";
 import { TokenInfo } from "../../utils/types";
 import { convertRouteToSwapSteps } from "../../utils/swapsteps";
 import { createClient } from "@supabase/supabase-js";
 import { executorAddress } from "../../../Arbitrum/constants/addresses";
-import { buildUnwrapWETHCall } from "../../../Arbitrum/shared/build/UnwrapWETH";
+import { buildUnwrapWETHCall } from "../../../Arbitrum/shared/build/UnwrapWETH.ts";
 import {getWETHBalance} from "../../shared/build/BalanceOf"
 import {BigNumber, Wallet} from "ethers";
 import {buildSwapToETHCall} from "../../shared/build/buildSwapResidual";
