@@ -6,7 +6,7 @@ import './sandwichScanner';
 import * as dotenv from "dotenv";
 import * as path from "path";
 
-dotenv.config({ path: path.resolve(__dirname, "../../../Arbitrum/.env") });
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
 // Initialize Supabase client for database interaction
 const supabaseUrl = process.env.SUPABASE_URL!;

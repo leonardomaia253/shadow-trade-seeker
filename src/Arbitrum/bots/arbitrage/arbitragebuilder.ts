@@ -1,5 +1,5 @@
 import { Call, SwapStep, BasicSwapStep, BuildOrchestrationParams } from "../../utils/types";
-import { buildSwapTransaction } from "../../shared/build/buildSwap.ts";
+import { buildSwapTransaction } from "../../shared/build/buildSwap";
 import { buildApproveCall } from "../../shared/build/buildApproveCall";
 import { selectFlashloanToken } from "../../utils/flashloanamount";
 import { BigNumber } from "ethers";

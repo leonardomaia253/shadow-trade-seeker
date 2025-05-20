@@ -5,17 +5,16 @@ import { enhancedLogger as log } from "../../utils/enhancedLogger";
 import { decodeSwap } from "../../utils/decodeSwap";
 import { buildFrontrunBundlelongo, buildFrontrunBundlecurto } from "./frontrunbuilder";
 import { selectFlashloanToken } from "../../utils/flashloanamount";
-import { executorAddress } from "@/Arbitrum/constants/addresses";
+import { executorAddress } from "../../constants/addresses";
 import { simulateTokenProfit } from "../../simulation/simulate";
-import { buildSwapToETHCall } from "@/Arbitrum/shared/build/buildSwapResidual";
-import { buildUnwrapWETHCall } from "@/Arbitrum/shared/build/UnwrapWETH";
-import { getWETHBalance } from "@/Arbitrum/shared/build/BalanceOf";
+import { buildSwapToETHCall } from "../../shared/build/buildSwapResidual";
+import { buildUnwrapWETHCall } from "../../shared/build/UnwrapWETH";
+import { getWETHBalance } from "../../shared/build/BalanceOf";
 import { sendBundle } from "../../executor/sendBundle";
 import * as dotenv from "dotenv";
 import * as path from "path";
 
-dotenv.config({ path: path.resolve(__dirname, "../../../Arbitrum/.env") });
-
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
 const WEBSOCKET_RPC_URL = process.env.WEBSOCKET_RPC_URL!;
 const DRY_RUN = process.env.DRY_RUN === "true";

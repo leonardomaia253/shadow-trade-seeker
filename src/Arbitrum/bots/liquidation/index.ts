@@ -4,8 +4,7 @@ import { watchCompoundLiquidationEvents, getCompoundLiquidationOpportunities } f
 import * as dotenv from "dotenv";
 import * as path from "path";
 
-dotenv.config({ path: path.resolve(__dirname, "../../../Arbitrum/.env") });
-
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 const provider = new JsonRpcProvider("https://mainnet.infura.io/v3/YOUR_KEY");
 
 watchCompoundLiquidationEvents(provider, 19_000_000, async (users) => {

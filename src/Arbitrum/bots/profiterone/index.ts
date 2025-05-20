@@ -8,18 +8,17 @@ import { findBestMultiHopRoute } from "./profiter1scanner";
 import { TokenInfo } from "../../utils/types";
 import { convertRouteToSwapSteps } from "../../utils/swapsteps";
 import { createClient } from "@supabase/supabase-js";
-import { executorAddress } from "@/Arbitrum/constants/addresses";
-import { buildUnwrapWETHCall } from "@/Arbitrum/shared/build/UnwrapWETH";
+import { executorAddress } from "../../constants/addresses";
+import { buildUnwrapWETHCall } from "../../shared/build/UnwrapWETH";
 import {getWETHBalance} from "../../shared/build/BalanceOf";
 import {BigNumber, Wallet} from "ethers";
 import {buildSwapToETHCall} from "../../shared/build/buildSwapResidual";
 import { simulateTokenProfit } from "../../simulation/simulate";
-import { sendBundle } from "@/Arbitrum/executor/sendBundle";
+import { sendBundle } from "../../executor/sendBundle";
 import * as dotenv from "dotenv";
 import * as path from "path";
 
-dotenv.config({ path: path.resolve(__dirname, "../../../Arbitrum/.env") });
-
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 // Initialize Supabase client for database interaction
 const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_KEY!;
