@@ -13,6 +13,8 @@
     "noUnusedParameters": false,
     "skipLibCheck": true,
     "allowJs": true,
+    "allowImportingTsExtensions": true,
+    "allowSyntheticDefaultImports": true,
     "noUnusedLocals": false,
     "strictNullChecks": false
   }
