@@ -29,7 +29,11 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
 // Authentication middleware
@@ -324,6 +328,15 @@ app.post('/processes/:name/env', async (req, res) => {
   } finally {
     pm2Disconnect();
   }
+});
+
+// HEALTH CHECK endpoint for monitoring
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    service: 'pm2-api-server'
+  });
 });
 
 // Error handling middleware

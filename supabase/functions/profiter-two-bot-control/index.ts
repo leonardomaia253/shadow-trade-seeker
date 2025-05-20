@@ -43,27 +43,41 @@ Deno.serve(async (req) => {
           metadata: { config }
         })
         
-        // Chama a API PM2 real para iniciar o bot
-        const result = await client.startProcess('profiter-two', {
-          env: {
-            NODE_ENV: 'production',
-            BASE_TOKEN: config?.baseToken?.address || '0x82af49447d8a07e3bd95bd0d56f35241523fbab1',
-            PROFIT_THRESHOLD: config?.profitThreshold?.toString() || '0.01',
-            GAS_MULTIPLIER: config?.gasMultiplier?.toString() || '1.2',
-            MAX_GAS_PRICE: config?.maxGasPrice?.toString() || '30'
-          }
-        })
-        
-        // Atualiza o status do bot no banco de dados
-        await supabase
-          .from('bot_statistics')
-          .update({ is_running: true, updated_at: new Date().toISOString() })
-          .eq('bot_type', 'profiter-two')
-        
-        return new Response(
-          JSON.stringify({ success: true, status: 'started', result }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
+        try {
+          // Chama a API PM2 real para iniciar o bot
+          const result = await client.startProcess('profiter-two', {
+            env: {
+              NODE_ENV: 'production',
+              BASE_TOKEN: config?.baseToken?.address || '0x82af49447d8a07e3bd95bd0d56f35241523fbab1',
+              PROFIT_THRESHOLD: config?.profitThreshold?.toString() || '0.01',
+              GAS_MULTIPLIER: config?.gasMultiplier?.toString() || '1.2',
+              MAX_GAS_PRICE: config?.maxGasPrice?.toString() || '30'
+            }
+          })
+          
+          // Atualiza o status do bot no banco de dados
+          await supabase
+            .from('bot_statistics')
+            .update({ is_running: true, updated_at: new Date().toISOString() })
+            .eq('bot_type', 'profiter-two')
+          
+          return new Response(
+            JSON.stringify({ success: true, status: 'started', result }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        } catch (error) {
+          // Log de erro no banco de dados
+          await supabase.from('bot_logs').insert({
+            level: 'error',
+            message: `Failed to start bot via PM2 API: ${error.message}`,
+            category: 'exception',
+            bot_type: 'profiter-two',
+            source: 'system',
+            metadata: { error: error.message }
+          })
+          
+          throw error
+        }
       }
       
       case 'stop': {
@@ -78,43 +92,88 @@ Deno.serve(async (req) => {
           source: 'system'
         })
         
-        // Chama a API PM2 real para parar o bot
-        const result = await client.stopProcess('profiter-two')
-        
-        // Atualiza o status do bot no banco de dados
-        await supabase
-          .from('bot_statistics')
-          .update({ is_running: false, updated_at: new Date().toISOString() })
-          .eq('bot_type', 'profiter-two')
-        
-        return new Response(
-          JSON.stringify({ success: true, status: 'stopped', result }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
+        try {
+          // Chama a API PM2 real para parar o bot
+          const result = await client.stopProcess('profiter-two')
+          
+          // Atualiza o status do bot no banco de dados
+          await supabase
+            .from('bot_statistics')
+            .update({ is_running: false, updated_at: new Date().toISOString() })
+            .eq('bot_type', 'profiter-two')
+          
+          return new Response(
+            JSON.stringify({ success: true, status: 'stopped', result }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        } catch (error) {
+          // Log de erro no banco de dados
+          await supabase.from('bot_logs').insert({
+            level: 'error',
+            message: `Failed to stop bot via PM2 API: ${error.message}`,
+            category: 'exception',
+            bot_type: 'profiter-two',
+            source: 'system',
+            metadata: { error: error.message }
+          })
+          
+          throw error
+        }
       }
       
       case 'pm2Status': {
         console.log(`Checking PM2 status for profiter-two bot`)
         
-        // Consulta o status real do PM2 através da API
-        const status = await client.getProcessStatus('profiter-two')
-        
-        return new Response(
-          JSON.stringify({ success: true, status: status?.status || 'unknown', details: status }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
+        try {
+          // Consulta o status real do PM2 através da API
+          const status = await client.getProcessStatus('profiter-two')
+          
+          return new Response(
+            JSON.stringify({ success: true, status: status?.status || 'unknown', details: status }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        } catch (error) {
+          console.error(`Error checking PM2 status: ${error.message}`)
+          
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              status: 'unknown',
+              error: error.message,
+              message: 'Error connecting to PM2 API server. Make sure it is running and properly configured.'
+            }),
+            { 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              status: 503 // Service Unavailable
+            }
+          )
+        }
       }
       
       case 'pm2Logs': {
         console.log(`Getting PM2 logs for profiter-two bot`)
         
-        // Obtém os logs do PM2 através da API
-        const logs = await client.getLogs('profiter-two', { lines: 100 })
-        
-        return new Response(
-          JSON.stringify({ success: true, logs }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
+        try {
+          // Obtém os logs do PM2 através da API
+          const logs = await client.getLogs('profiter-two', { lines: 100 })
+          
+          return new Response(
+            JSON.stringify({ success: true, logs }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        } catch (error) {
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              logs: `Error retrieving logs: ${error.message}`,
+              error: error.message 
+            }),
+            { 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              status: 503 
+            }
+          )
+        }
       }
       
       case 'pm2Restart': {
@@ -129,41 +188,180 @@ Deno.serve(async (req) => {
           source: 'system'
         })
         
-        // Reinicia o processo através da API PM2
-        const result = await client.restartProcess('profiter-two')
-        
-        return new Response(
-          JSON.stringify({ success: true, status: 'restarted', result }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
+        try {
+          // Reinicia o processo através da API PM2
+          const result = await client.restartProcess('profiter-two')
+          
+          return new Response(
+            JSON.stringify({ success: true, status: 'restarted', result }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        } catch (error) {
+          // Log de erro no banco de dados
+          await supabase.from('bot_logs').insert({
+            level: 'error',
+            message: `Failed to restart bot via PM2 API: ${error.message}`,
+            category: 'exception',
+            bot_type: 'profiter-two',
+            source: 'system',
+            metadata: { error: error.message }
+          })
+          
+          throw error
+        }
       }
       
-      case 'updateConfig': {
-        console.log(`Updating configuration for profiter-two bot:`, config)
+      case 'pm2Start': {
+        console.log(`Starting profiter-two bot with PM2 directly`)
         
-        // Atualiza a configuração do bot através da API PM2
-        // Isso pode envolver reconfigurar o ambiente ou reiniciar o processo
-        await client.setEnv('profiter-two', {
-          BASE_TOKEN: config?.baseToken?.address || '0x82af49447d8a07e3bd95bd0d56f35241523fbab1',
-          PROFIT_THRESHOLD: config?.profitThreshold?.toString() || '0.01',
-          GAS_MULTIPLIER: config?.gasMultiplier?.toString() || '1.2',
-          MAX_GAS_PRICE: config?.maxGasPrice?.toString() || '30'
-        })
-        
-        // Log da atualização de configuração
+        // Log no banco de dados que o bot está iniciando
         await supabase.from('bot_logs').insert({
           level: 'info',
-          message: 'Configuration updated for profiter-two bot',
-          category: 'configuration',
+          message: 'Starting profiter-two bot directly via PM2 API',
+          category: 'bot_state',
           bot_type: 'profiter-two',
           source: 'system',
           metadata: { config }
         })
         
-        return new Response(
-          JSON.stringify({ success: true, message: 'Configuration updated' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
+        try {
+          // Inicia diretamente com a API PM2
+          const result = await client.startProcess('profiter-two', {
+            env: {
+              NODE_ENV: 'production',
+              BASE_TOKEN: config?.baseToken?.address || '0x82af49447d8a07e3bd95bd0d56f35241523fbab1',
+              PROFIT_THRESHOLD: config?.profitThreshold?.toString() || '0.01',
+              GAS_MULTIPLIER: config?.gasMultiplier?.toString() || '1.2',
+              MAX_GAS_PRICE: config?.maxGasPrice?.toString() || '30'
+            }
+          })
+          
+          // Atualiza o status do bot no banco de dados
+          await supabase
+            .from('bot_statistics')
+            .update({ is_running: true, updated_at: new Date().toISOString() })
+            .eq('bot_type', 'profiter-two')
+          
+          return new Response(
+            JSON.stringify({ success: true, status: 'started', result }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        } catch (error) {
+          // Log de erro no banco de dados
+          await supabase.from('bot_logs').insert({
+            level: 'error',
+            message: `Failed to start bot directly via PM2 API: ${error.message}`,
+            category: 'exception',
+            bot_type: 'profiter-two',
+            source: 'system',
+            metadata: { error: error.message }
+          })
+          
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: error.message,
+              message: 'Failed to start bot via PM2 API. Check server logs for details.'
+            }),
+            { 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              status: 503
+            }
+          )
+        }
+      }
+      
+      case 'pm2Stop': {
+        console.log(`Stopping profiter-two bot with PM2 directly`)
+        
+        // Log no banco de dados que o bot está parando
+        await supabase.from('bot_logs').insert({
+          level: 'info',
+          message: 'Stopping profiter-two bot directly via PM2 API',
+          category: 'bot_state',
+          bot_type: 'profiter-two',
+          source: 'system'
+        })
+        
+        try {
+          // Para diretamente com a API PM2
+          const result = await client.stopProcess('profiter-two')
+          
+          // Atualiza o status do bot no banco de dados
+          await supabase
+            .from('bot_statistics')
+            .update({ is_running: false, updated_at: new Date().toISOString() })
+            .eq('bot_type', 'profiter-two')
+          
+          return new Response(
+            JSON.stringify({ success: true, status: 'stopped', result }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        } catch (error) {
+          // Log de erro no banco de dados
+          await supabase.from('bot_logs').insert({
+            level: 'error',
+            message: `Failed to stop bot directly via PM2 API: ${error.message}`,
+            category: 'exception',
+            bot_type: 'profiter-two',
+            source: 'system',
+            metadata: { error: error.message }
+          })
+          
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: error.message,
+              message: 'Failed to stop bot via PM2 API. Check server logs for details.'
+            }),
+            { 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              status: 503
+            }
+          )
+        }
+      }
+      
+      case 'updateConfig': {
+        console.log(`Updating configuration for profiter-two bot:`, config)
+        
+        try {
+          // Atualiza a configuração do bot através da API PM2
+          // Isso pode envolver reconfigurar o ambiente ou reiniciar o processo
+          await client.setEnv('profiter-two', {
+            BASE_TOKEN: config?.baseToken?.address || '0x82af49447d8a07e3bd95bd0d56f35241523fbab1',
+            PROFIT_THRESHOLD: config?.profitThreshold?.toString() || '0.01',
+            GAS_MULTIPLIER: config?.gasMultiplier?.toString() || '1.2',
+            MAX_GAS_PRICE: config?.maxGasPrice?.toString() || '30'
+          })
+          
+          // Log da atualização de configuração
+          await supabase.from('bot_logs').insert({
+            level: 'info',
+            message: 'Configuration updated for profiter-two bot',
+            category: 'configuration',
+            bot_type: 'profiter-two',
+            source: 'system',
+            metadata: { config }
+          })
+          
+          return new Response(
+            JSON.stringify({ success: true, message: 'Configuration updated' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        } catch (error) {
+          // Log de erro no banco de dados
+          await supabase.from('bot_logs').insert({
+            level: 'error',
+            message: `Failed to update configuration: ${error.message}`,
+            category: 'exception',
+            bot_type: 'profiter-two',
+            source: 'system',
+            metadata: { error: error.message, config }
+          })
+          
+          throw error
+        }
       }
       
       case 'reportModuleStatus': {
@@ -295,6 +493,7 @@ Deno.serve(async (req) => {
               success: true,
               status: statistics?.is_running ? "running" : "stopped",
               pm2Status: "unknown",
+              pm2Error: error.message,
               statistics,
               transactions,
               logs,
@@ -302,6 +501,35 @@ Deno.serve(async (req) => {
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
+        }
+      }
+      
+      case 'checkPm2Connection': {
+        console.log('Checking PM2 API server connection')
+        try {
+          // Get health status of PM2 API server
+          const health = await client.checkHealth()
+          
+          return new Response(
+            JSON.stringify({ 
+              success: true, 
+              status: 'connected',
+              message: 'Successfully connected to PM2 API server',
+              health 
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        } catch (error) {
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              status: 'disconnected',
+              message: `Failed to connect to PM2 API server: ${error.message}`,
+              error: error.message,
+              serverUrl: PM2_API_URL
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
         }
       }
       
