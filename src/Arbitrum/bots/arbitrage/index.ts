@@ -125,7 +125,25 @@ async function executeCycle() {
       console.log("Lucro líquido:", profitInETH.toFixed(6), currentBaseToken.symbol);
 
       const route = await convertRouteToSwapSteps(bestRoute.route);
-      const {calls, flashLoanToken, flashLoanAmount} = await buildOrchestrationFromRoute({route, executor:executorAddress } );
+      const startsWithBaseToken = bestRoute.route[0]?.tokenIn.address.toLowerCase() === currentBaseToken.address.toLowerCase();
+
+      if (startsWithBaseToken) {
+        const { calls, flashLoanToken, flashLoanAmount } = await buildOrchestrationFromRoute({
+         route,
+         executor: executorAddress,
+         altToken: currentBaseToken.address,
+         useAltToken: false
+        });
+        return;
+       }
+
+        const { calls, flashLoanToken, flashLoanAmount } = await buildOrchestrationFromRoute({
+        route,
+        executor: executorAddress,
+        altToken: currentBaseToken.address,
+        useAltToken: true
+        
+      });
       const profit = await simulateTokenProfit({provider,executorAddress,tokenAddress: flashLoanToken, calls: calls});
       
       // Monta a chamada para trocar lucro residual para ETH
