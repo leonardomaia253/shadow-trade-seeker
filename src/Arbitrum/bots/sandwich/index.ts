@@ -80,43 +80,7 @@ executorLogger.logInitialization({
   timestamp: new Date().toISOString(),
 });
 
-// Check critical dependencies if we have Supabase configured
-if (supabase) {
-  // We'll use a dummy ethers provider for the dependency check
-  const ethers = require('ethers');
-  const provider = new ethers.providers.WebSocketProvider(process.env.WEBSOCKET_RPC_URL!);
-  
-  checkDependencies({
-    botType: "sandwich",
-    provider,
-    supabase,
-    dependencies: [
-      {
-        name: "mempool-connection",
-        check: async () => {
-          try {
-            await provider.getBlockNumber();
-            return true;
-          } catch {
-            return false;
-          }
-        }
-      },
-      {
-        name: "dex-contracts", 
-        check: async () => {
-          try {
-            // Check a known DEX router
-            const code = await provider.getCode("0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506"); // SushiSwap Router
-            return code !== '0x';
-          } catch {
-            return false;
-          }
-        }
-      }
-    ]
-  });
-}
+
 
 // The sandwichScanner.ts file is imported, which contains the main bot logic
 // and will automatically start watching for opportunities when imported
