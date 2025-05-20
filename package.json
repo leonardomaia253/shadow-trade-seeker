@@ -8,8 +8,14 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
-  },
+    "preview": "vite preview",
+    "arbitrage": "node --loader ts-node/esm src/Arbitrum/bots/arbitrage/index.ts",
+    "profiterone": "node --loader ts-node/esm src/Arbitrum/bots/profiterone/index.ts",
+    "profitertwo": "node --loader ts-node/esm src/Arbitrum/bots/profitertwo/index.ts",
+    "frontrunscanner": "node --loader ts-node/esm src/Arbitrum/bots/frontrun/index.ts",
+    "sandwichscanner": "node --loader ts-node/esm src/Arbitrum/bots/sandwich/index.ts",
+    "liquidation": "node --loader ts-node/esm src/Arbitrum/bots/liquidation/index.ts"
+},
   "dependencies": {
     "@ethersproject/providers": "^5.8.0",
     "@hookform/resolvers": "^3.9.0",
