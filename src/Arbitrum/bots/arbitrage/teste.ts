@@ -1,4 +1,2 @@
-import { createClient } from '@supabase/supabase-js';
-
-const client = createClient('https://xyz', 'public-anon-key');
-console.log(client);
+import { buildSwapTransaction } from '../../shared/build/buildSwap';
+console.log('Import OK');
